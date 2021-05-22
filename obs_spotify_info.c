@@ -1,0 +1,107 @@
+#include <stdbool.h>
+#include <obs/obs-module.h>
+#include <obs/util/bmem.h>
+#include <obs/graphics/graphics.h>
+
+
+typedef struct source {
+    bool live;
+    uint32_t width;
+    uint32_t height;
+} obspot_source;
+
+const char* obspot_get_name(void* type_data) {
+    return "Spotify infos";
+}
+
+void* obspot_create(obs_data_t *settings, obs_source_t *source) {
+    obspot_source* data = bmalloc(sizeof(obspot_source));
+
+    data->width = 300;
+    data->height = 200;
+
+    return data;
+}
+
+void obspot_destroy(void* data) {
+    bfree(data);
+}
+
+uint32_t obspot_get_width(void* data) {
+    obspot_source* d = data;
+    return d->width;
+}
+
+uint32_t obspot_get_height(void* data) {
+    obspot_source* d = data;
+    return d->height;
+}
+
+
+static obs_properties_t* obspot_get_properties(void *data)
+{
+    obspot_source* d = data;
+    obs_properties_t *props = obs_properties_create();
+
+    obs_properties_add_font(props, "font", obs_module_text("Font"));
+    obs_properties_add_text(props, "text", obs_module_text("Text"), OBS_TEXT_MULTILINE);
+
+    return props;
+}
+
+
+void obspot_video_render(void *data, gs_effect_t *effect) {
+     obspot_source* d = data;
+     static gs_texture_t* texture = NULL;
+     static int n = 0;
+
+     if (texture == NULL)
+        texture = gs_texture_create_from_file("/home/robin/Téléchargements/label.png");
+
+     obs_source_draw(texture, 0, 0, d->width, d->height, false);
+
+     //gs_texture_destroy(texture);
+
+
+     char test[50];
+     n = n + 1;
+     snprintf(test, 49, "%d", n);
+     obs_source_t* text = obs_get_source_by_name("toto");
+     obs_data_t* tdata = obs_data_create();
+     obs_data_set_string(tdata, "text", test);
+     obs_source_update(text, tdata);
+     obs_data_release(tdata);
+     obs_source_release(text);
+}
+
+
+struct obs_source_info obs_spotify_info = {
+    .id = "obs_spotify_info",
+    .type = OBS_SOURCE_TYPE_INPUT,
+    .output_flags = OBS_SOURCE_VIDEO,
+    .create = obspot_create,
+    .destroy = obspot_destroy,
+    .video_render = obspot_video_render,
+    .get_name = obspot_get_name,
+    .get_width = obspot_get_width,
+    .get_height = obspot_get_height,
+    /*.update = obspot_update,
+    .get_defaults = obspot_get_defaults,*/
+    .get_properties = obspot_get_properties,
+    .icon_type = OBS_ICON_TYPE_CUSTOM,
+};
+
+
+
+OBS_DECLARE_MODULE()
+OBS_MODULE_USE_DEFAULT_LOCALE("obs_sportify_info", "en-US")
+MODULE_EXPORT const char *obs_module_description(void)
+{
+    return "Test plugin";
+}
+
+bool obs_module_load(void)
+{
+    obs_register_source(&obs_spotify_info);
+    return true;
+}
