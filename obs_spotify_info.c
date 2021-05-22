@@ -1,8 +1,13 @@
 #include <stdbool.h>
+#include <string.h>
 #include <obs/obs-module.h>
 #include <obs/util/bmem.h>
 #include <obs/graphics/graphics.h>
+#include "track_info.h"
 
+extern TrackInfo current_track;
+void mpris_init();
+int mpris_process();
 
 typedef struct source {
     bool live;
@@ -18,8 +23,9 @@ void* obspot_create(obs_data_t *settings, obs_source_t *source) {
     obspot_source* data = bmalloc(sizeof(obspot_source));
 
     data->width = 300;
-    data->height = 200;
+    data->height = 300;
 
+    mpris_init();
     return data;
 }
 
@@ -51,24 +57,26 @@ static obs_properties_t* obspot_get_properties(void *data)
 
 
 void obspot_video_render(void *data, gs_effect_t *effect) {
+     mpris_process();
      obspot_source* d = data;
      static gs_texture_t* texture = NULL;
-     static int n = 0;
+     static char* last_track_url = "";
 
-     if (texture == NULL)
-        texture = gs_texture_create_from_file("/home/robin/Téléchargements/label.png");
+     if (current_track.album_art_url != NULL && strcmp(last_track_url, current_track.album_art_url) != 0) {
+         //if (last_track_url != NULL) free(last_track_url);
+         if (texture != NULL) gs_texture_destroy(texture);
+         texture = gs_texture_create_from_file(current_track.album_art_url);
+         last_track_url = strdup(current_track.album_art_url);
+     }
 
      obs_source_draw(texture, 0, 0, d->width, d->height, false);
 
      //gs_texture_destroy(texture);
 
 
-     char test[50];
-     n = n + 1;
-     snprintf(test, 49, "%d", n);
      obs_source_t* text = obs_get_source_by_name("toto");
      obs_data_t* tdata = obs_data_create();
-     obs_data_set_string(tdata, "text", test);
+     obs_data_set_string(tdata, "text", current_track.title);
      obs_source_update(text, tdata);
      obs_data_release(tdata);
      obs_source_release(text);

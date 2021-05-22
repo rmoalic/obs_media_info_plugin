@@ -5,16 +5,20 @@
 #include <dbus/dbus.h>
 #include "track_info.h"
 
-static DBusConnection* dbus;
+DBusConnection* dbus;
 TrackInfo current_track;
 
 static char* correct_art_url(const char* url) {
     static const char* spotify_old = "https://open.spotify.com/image/";
     static const char* spotify_new = "https://i.scdn.co/image/";
+    static const char* file_url = "file://";
     char* ret;
     if (strncmp(spotify_old, url, strlen(spotify_old)) == 0) {
         ret = malloc(100 * sizeof(char));
         sprintf(ret, "%s%s", spotify_new, url + strlen(spotify_old));
+    } if (strncmp(file_url, url, strlen(file_url)) == 0) {
+        ret = malloc(100 * sizeof(char));
+        sprintf(ret, "%s", url + strlen(file_url)); //TODO: urldecode
     } else {
         ret = strdup(url);
     }
@@ -132,12 +136,14 @@ static DBusHandlerResult my_message_handler(DBusConnection *connection, DBusMess
             printf("%s\n", property_name);
         } break;
         case DBUS_TYPE_ARRAY: {
-            int c = dbus_message_iter_get_element_count(&iter);
-            if (c == 0) break; // if empty array, skip
+            if (strcmp(property_name, "org.mpris.MediaPlayer2.Player") == 0) {
+                int c = dbus_message_iter_get_element_count(&iter);
+                if (c == 0) break; // if empty array, skip
 
-            dbus_message_iter_recurse(&iter, &sub);
+                dbus_message_iter_recurse(&iter, &sub);
 
-            parse_array(&sub);
+                parse_array(&sub);
+            }
         } break;
         default:
             fprintf(stderr, "parse error\n");
@@ -191,7 +197,7 @@ void mpris_init() {
 }
 
 int mpris_process() {
-    return dbus_connection_read_write_dispatch(dbus, -1);
+    return dbus_connection_read_write_dispatch(dbus, 0);
 }
 
 int main(int argc, char *argv[])

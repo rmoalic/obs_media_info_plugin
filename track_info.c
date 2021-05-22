@@ -7,6 +7,10 @@ void track_info_free(TrackInfo* ti) {
     if (ti->album != NULL) free(ti->album);
     if (ti->title != NULL) free(ti->title);
     if (ti->album_art_url != NULL) free(ti->album_art_url);
+    ti->artist = NULL;
+    ti->album = NULL;
+    ti->title = NULL;
+    ti->album_art_url = NULL;
 }
 
 void track_info_print(TrackInfo ti) {
