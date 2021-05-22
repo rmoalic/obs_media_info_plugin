@@ -16,7 +16,7 @@ static char* correct_art_url(const char* url) {
     if (strncmp(spotify_old, url, strlen(spotify_old)) == 0) {
         ret = malloc(100 * sizeof(char));
         sprintf(ret, "%s%s", spotify_new, url + strlen(spotify_old));
-    } if (strncmp(file_url, url, strlen(file_url)) == 0) {
+    } else if (strncmp(file_url, url, strlen(file_url)) == 0) {
         ret = malloc(100 * sizeof(char));
         sprintf(ret, "%s", url + strlen(file_url)); //TODO: urldecode
     } else {
