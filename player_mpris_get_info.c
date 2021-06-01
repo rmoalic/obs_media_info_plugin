@@ -2,11 +2,46 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
+#include <ctype.h>
 #include <dbus/dbus.h>
 #include "track_info.h"
 
+#define NB_PLAYER_MAX 10
+
+typedef struct track_info_per_player {
+    TrackInfo track;
+    char* player;
+    bool playing;
+} TrackInfoPerPlayer;
+
+TrackInfoPerPlayer tipp[NB_PLAYER_MAX] = {0};
+TrackInfoPerPlayer* tipp_head = NULL;
+
+static void tipp_store_change(TrackInfoPerPlayer info) {
+
+}
+
 DBusConnection* dbus;
 TrackInfo current_track;
+
+static int decodeURIComponent (char *sSource, char *sDest) { // https://stackoverflow.com/a/20437049
+    int nLength;
+    for (nLength = 0; *sSource; nLength++) {
+        if (*sSource == '%' && sSource[1] && sSource[2] && isxdigit(sSource[1]) && isxdigit(sSource[2])) {
+            sSource[1] -= sSource[1] <= '9' ? '0' : (sSource[1] <= 'F' ? 'A' : 'a')-10;
+            sSource[2] -= sSource[2] <= '9' ? '0' : (sSource[2] <= 'F' ? 'A' : 'a')-10;
+            sDest[nLength] = 16 * sSource[1] + sSource[2];
+            sSource += 3;
+            continue;
+        }
+        sDest[nLength] = *sSource++;
+    }
+    sDest[nLength] = '\0';
+    return nLength;
+}
+
+#define implodeURICompoent(url) decodeURIComponent(url, url)
 
 static char* correct_art_url(const char* url) {
     static const char* spotify_old = "https://open.spotify.com/image/";
@@ -14,11 +49,12 @@ static char* correct_art_url(const char* url) {
     static const char* file_url = "file://";
     char* ret;
     if (strncmp(spotify_old, url, strlen(spotify_old)) == 0) {
-        ret = malloc(100 * sizeof(char));
+        ret = malloc(100 * sizeof(char)); // TODO: correct size
         sprintf(ret, "%s%s", spotify_new, url + strlen(spotify_old));
     } else if (strncmp(file_url, url, strlen(file_url)) == 0) {
-        ret = malloc(100 * sizeof(char));
-        sprintf(ret, "%s", url + strlen(file_url)); //TODO: urldecode
+        ret = malloc(100 * sizeof(char)); // TODO: correct size
+        sprintf(ret, "%s", url + strlen(file_url));
+        implodeURIComponent(ret); //TODO: file url decode on windows
     } else {
         ret = strdup(url);
     }

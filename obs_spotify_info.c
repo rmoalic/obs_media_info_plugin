@@ -74,9 +74,11 @@ void obspot_video_render(void *data, gs_effect_t *effect) {
      //gs_texture_destroy(texture);
 
 
+     char text2[100];
+     snprintf(text2, 99, "%s\n%s\n%s", current_track.title, current_track.album, current_track.artist);
      obs_source_t* text = obs_get_source_by_name("toto");
      obs_data_t* tdata = obs_data_create();
-     obs_data_set_string(tdata, "text", current_track.title);
+     obs_data_set_string(tdata, "text", text2);
      obs_source_update(text, tdata);
      obs_data_release(tdata);
      obs_source_release(text);
