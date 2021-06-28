@@ -41,7 +41,7 @@ static int decodeURIComponent (char *sSource, char *sDest) { // https://stackove
     return nLength;
 }
 
-#define implodeURICompoent(url) decodeURIComponent(url, url)
+#define implodeURIComponent(url) decodeURIComponent(url, url)
 
 static char* correct_art_url(const char* url) {
     static const char* spotify_old = "https://open.spotify.com/image/";
@@ -235,7 +235,7 @@ void mpris_init() {
 int mpris_process() {
     return dbus_connection_read_write_dispatch(dbus, 0);
 }
-
+/*
 int main(int argc, char *argv[])
 {
     mpris_init();
@@ -244,3 +244,4 @@ int main(int argc, char *argv[])
 
     return EXIT_SUCCESS;
 }
+*/
