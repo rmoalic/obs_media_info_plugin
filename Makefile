@@ -1,12 +1,12 @@
 all: lib
 
-lib: obs_spotify_info.so
+lib: obs_media_info.so
 
-obs_spotify_info.so: obs_spotify_info.o player_mpris_get_info.o track_info.o
-	clang -shared track_info.o player_mpris_get_info.o obs_spotify_info.o -o obs_spotify_info.so
+obs_media_info.so: obs_media_info.o player_mpris_get_info.o track_info.o
+	clang -shared track_info.o player_mpris_get_info.o obs_media_info.o -o obs_media_info.so
 
-obs_spotify_info.o: obs_spotify_info.c
-	clang -Wall -c -fPIC obs_spotify_info.c
+obs_media_info.o: obs_media_info.c
+	clang -Wall -c -fPIC obs_media_info.c
 
 track_info.o: track_info.c track_info.h
 	clang -Wall -Wextra -fPIC -c track_info.c

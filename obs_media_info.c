@@ -20,15 +20,15 @@ typedef struct source {
     bool end_update_thread;
     pthread_mutex_t* texture_mutex;
     gs_texture_t* texture;
-} obspot_source;
+} obsmed_source;
 
-const char* obspot_get_name(void* type_data) {
-    return "Spotify infos";
+const char* obsmed_get_name(void* type_data) {
+    return "Media infos";
 }
 
 
 void* update_func(void* arg) {
-    obspot_source* source = arg;
+    obsmed_source* source = arg;
     char* last_track_url = strdup("");
     time_t last_update_time = time(NULL);
 
@@ -44,7 +44,7 @@ void* update_func(void* arg) {
                 pthread_mutex_lock(source->texture_mutex);
                 obs_enter_graphics();
                 if (source->texture != NULL) gs_texture_destroy(source->texture);
-                source->texture = gs_texture_create_from_file(current_track.album_art_url);
+                source->texture = gs_texture_create_from_file(current_track.album_art_url); //TODO: texture from http only works with obs's ffmpeg backend not with imageMagic.
                 if (source->texture == NULL) puts("error loading texture");
                 obs_leave_graphics();
                 pthread_mutex_unlock(source->texture_mutex);
@@ -66,8 +66,8 @@ void* update_func(void* arg) {
     pthread_exit(NULL);
 }
 
-void* obspot_create(obs_data_t *settings, obs_source_t *source) {
-    obspot_source* data = bmalloc(sizeof(obspot_source));
+void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
+    obsmed_source* data = bmalloc(sizeof(obsmed_source));
     mpris_init();
 
     data->width = 300;
@@ -85,8 +85,8 @@ void* obspot_create(obs_data_t *settings, obs_source_t *source) {
     return data;
 }
 
-void obspot_destroy(void* d) {
-    obspot_source* data = d;
+void obsmed_destroy(void* d) {
+    obsmed_source* data = d;
     data->end_update_thread = true;
     pthread_join(data->update_thread, NULL);
     pthread_mutex_destroy(data->texture_mutex);
@@ -95,20 +95,20 @@ void obspot_destroy(void* d) {
     bfree(data);
 }
 
-uint32_t obspot_get_width(void* data) {
-    obspot_source* d = data;
+uint32_t obsmed_get_width(void* data) {
+    obsmed_source* d = data;
     return d->width;
 }
 
-uint32_t obspot_get_height(void* data) {
-    obspot_source* d = data;
+uint32_t obsmed_get_height(void* data) {
+    obsmed_source* d = data;
     return d->height;
 }
 
 
-static obs_properties_t* obspot_get_properties(void *data)
+static obs_properties_t* obsmed_get_properties(void *data)
 {
-    obspot_source* d = data;
+    obsmed_source* d = data;
     obs_properties_t *props = obs_properties_create();
 
     obs_properties_add_font(props, "font", obs_module_text("Font"));
@@ -118,8 +118,8 @@ static obs_properties_t* obspot_get_properties(void *data)
 }
 
 
-void obspot_video_render(void *data, gs_effect_t *effect) {
-     obspot_source* d = data;
+void obsmed_video_render(void *data, gs_effect_t *effect) {
+     obsmed_source* d = data;
 
      if (pthread_mutex_trylock(d->texture_mutex) == 0) {
          obs_source_draw(d->texture, 0, 0, d->width, d->height, false);
@@ -128,33 +128,33 @@ void obspot_video_render(void *data, gs_effect_t *effect) {
 }
 
 
-struct obs_source_info obs_spotify_info = {
-    .id = "obs_spotify_info",
+struct obs_source_info obs_media_info = {
+    .id = "obs_media_info",
     .type = OBS_SOURCE_TYPE_INPUT,
     .output_flags = OBS_SOURCE_VIDEO,
-    .create = obspot_create,
-    .destroy = obspot_destroy,
-    .video_render = obspot_video_render,
-    .get_name = obspot_get_name,
-    .get_width = obspot_get_width,
-    .get_height = obspot_get_height,
-    /*.update = obspot_update,
-    .get_defaults = obspot_get_defaults,*/
-    .get_properties = obspot_get_properties,
+    .create = obsmed_create,
+    .destroy = obsmed_destroy,
+    .video_render = obsmed_video_render,
+    .get_name = obsmed_get_name,
+    .get_width = obsmed_get_width,
+    .get_height = obsmed_get_height,
+    /*.update = obsmed_update,
+    .get_defaults = obsmed_get_defaults,*/
+    .get_properties = obsmed_get_properties,
     .icon_type = OBS_ICON_TYPE_CUSTOM,
 };
 
 
 
 OBS_DECLARE_MODULE()
-OBS_MODULE_USE_DEFAULT_LOCALE("obs_sportify_info", "en-US")
+OBS_MODULE_USE_DEFAULT_LOCALE("obs_media_info", "en-US")
 MODULE_EXPORT const char *obs_module_description(void)
 {
-    return "Test plugin";
+    return "Plugin to display the cover artwork and basic informations on the currently playing sound";
 }
 
 bool obs_module_load(void)
 {
-    obs_register_source(&obs_spotify_info);
+    obs_register_source(&obs_media_info);
     return true;
 }
