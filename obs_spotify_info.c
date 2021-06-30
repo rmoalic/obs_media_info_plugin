@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <string.h>
+#include <time.h>
 #include <obs/obs-module.h>
 #include <obs/util/bmem.h>
 #include <obs/util/platform.h>
@@ -28,13 +29,17 @@ const char* obspot_get_name(void* type_data) {
 
 void* update_func(void* arg) {
     obspot_source* source = arg;
-    char* last_track_url = "";
+    char* last_track_url = strdup("");
+    time_t last_update_time = time(NULL);
 
     while (! source->end_update_thread) {
-        mpris_process();
-        if (true) { //TODO: detect track change
+        mpris_process(); // Get new data into current_track
+
+        if (current_track.update_time > last_update_time) {
+            last_update_time = current_track.update_time;
+
             if (current_track.album_art_url != NULL && strcmp(last_track_url, current_track.album_art_url) != 0) {
-                //if (last_track_url != NULL) free(last_track_url);
+                if (last_track_url != NULL) free(last_track_url);
 
                 pthread_mutex_lock(source->texture_mutex);
                 obs_enter_graphics();

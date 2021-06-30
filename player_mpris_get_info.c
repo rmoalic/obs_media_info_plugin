@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdbool.h>
+#include <time.h>
 #include <ctype.h>
 #include <dbus/dbus.h>
 #include "track_info.h"
@@ -61,7 +62,18 @@ static char* correct_art_url(const char* url) {
     return ret;
 }
 
-static void parse_MetaData(DBusMessageIter* iter) {
+static bool update_data_if_diff(char** store, const char* new) {
+    bool ret = false;
+
+    if (*store == NULL || strcmp(*store, new) != 0) {
+        if (*store != NULL) free(*store);
+        *store = strdup(new);
+        ret = true;
+    }
+    return ret;
+}
+
+static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret) {
     int current_type;
     DBusMessageIter sub, subsub;
     const char* property_name = NULL;
@@ -71,7 +83,7 @@ static void parse_MetaData(DBusMessageIter* iter) {
         switch (current_type) {
         case DBUS_TYPE_DICT_ENTRY: {
             dbus_message_iter_recurse(iter, &sub);
-            parse_MetaData(&sub);
+            parse_MetaData(&sub, updated_data_ret);
 
         } break;
         case DBUS_TYPE_STRING: {
@@ -83,25 +95,33 @@ static void parse_MetaData(DBusMessageIter* iter) {
                 char* title;
                 dbus_message_iter_recurse(iter, &sub);
                 dbus_message_iter_get_basic(&sub, &title);
-                current_track.title = strdup(title);
+                if (update_data_if_diff(&(current_track.title), title)) {
+                    *updated_data_ret = true;
+                }
             } else if (strcmp(property_name, "mpris:artUrl") == 0) {
                 char* url;
                 char* correct_url;
                 dbus_message_iter_recurse(iter, &sub);
                 dbus_message_iter_get_basic(&sub, &url);
                 correct_url = correct_art_url(url);
-                current_track.album_art_url = correct_url;
+                if (update_data_if_diff(&(current_track.album_art_url), correct_url)) {
+                    *updated_data_ret = true;
+                }
             } else if (strcmp(property_name, "xesam:artist") == 0) {
                 char* artist;
                 dbus_message_iter_recurse(iter, &sub);
                 dbus_message_iter_recurse(&sub, &subsub);
                 dbus_message_iter_get_basic(&subsub, &artist);
-                current_track.artist = strdup(artist);
+                if (update_data_if_diff(&(current_track.artist), artist)) {
+                    *updated_data_ret = true;
+                }
             }else if (strcmp(property_name, "xesam:album") == 0) {
                 char* album;
                 dbus_message_iter_recurse(iter, &sub);
                 dbus_message_iter_get_basic(&sub, &album);
-                current_track.album = strdup(album);
+                if (update_data_if_diff(&(current_track.album), album)) {
+                    *updated_data_ret = true;
+                }
             } else {
                 printf("ignored: %s\n", property_name);
             }
@@ -114,7 +134,7 @@ static void parse_MetaData(DBusMessageIter* iter) {
 
 }
 
-static void parse_array(DBusMessageIter* iter) {
+static void parse_array(DBusMessageIter* iter, bool* updated_data_ret) {
     int current_type;
     DBusMessageIter sub, subsub;
     const char* property_name = NULL;
@@ -124,7 +144,7 @@ static void parse_array(DBusMessageIter* iter) {
         switch (current_type) {
         case DBUS_TYPE_DICT_ENTRY: {
             dbus_message_iter_recurse(iter, &sub);
-            parse_array(&sub);
+            parse_array(&sub, updated_data_ret);
         } break;
         case DBUS_TYPE_STRING: {
             dbus_message_iter_get_basic(iter, &property_name);
@@ -139,7 +159,7 @@ static void parse_array(DBusMessageIter* iter) {
             } else if (strcmp(property_name, "Metadata") == 0) {
                 dbus_message_iter_recurse(iter, &sub);
                 dbus_message_iter_recurse(&sub, &subsub);
-                parse_MetaData(&subsub);
+                parse_MetaData(&subsub, updated_data_ret);
             } else {
                 fprintf(stderr, "unhandled %s\n", property_name);
             }
@@ -155,11 +175,12 @@ static DBusHandlerResult my_message_handler(DBusConnection *connection, DBusMess
     DBusError error;
     DBusMessageIter iter, sub, subsub;
     int current_type;
+    bool updated_data = false;
 
     dbus_error_init(&error);
     printf("\n\nreceived message from %s\n", dbus_message_get_sender(message));
 
-    track_info_free(&current_track);
+    //track_info_free(&current_track);
 
     const char* property_name;
 
@@ -178,7 +199,7 @@ static DBusHandlerResult my_message_handler(DBusConnection *connection, DBusMess
 
                 dbus_message_iter_recurse(&iter, &sub);
 
-                parse_array(&sub);
+                parse_array(&sub, &updated_data);
             }
         } break;
         default:
@@ -186,6 +207,11 @@ static DBusHandlerResult my_message_handler(DBusConnection *connection, DBusMess
         }
         dbus_message_iter_next(&iter);
     }
+
+    if (updated_data) {
+        current_track.update_time = time(NULL);
+    }
+
     track_info_print(current_track);
 
     return DBUS_HANDLER_RESULT_HANDLED;
