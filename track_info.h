@@ -19,5 +19,5 @@ void track_info_register_track_change(const char* player, TrackInfo track);
 void track_info_register_state_change(const char* player, bool playing);
 TrackInfo* track_info_get_best_cantidate();
 void track_info_print_players();
-
+void track_info_unregister_player(const char* player);
 #endif

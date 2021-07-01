@@ -48,7 +48,7 @@ void* update_func(void* arg) {
             last_update_time = current_track->update_time;
         }
 
-        if (changed) {
+        if (changed && current_track != NULL) {
             if (current_track->album_art_url != NULL && strcmp(last_track_url, current_track->album_art_url) != 0) {
                 if (last_track_url != NULL) free(last_track_url);
 

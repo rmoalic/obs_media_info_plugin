@@ -59,6 +59,11 @@ void track_info_free(TrackInfo* ti) {
     efree(ti->album_art_url);
 }
 
+void track_info_unregister_player(const char* player) {
+    TrackInfoPerPlayer h = {.player = player};
+    list_remove(&players, &h, (list_cmpfunc) players_name_cmp);
+}
+
 static TrackInfoPerPlayer* track_info_get_for_player(const char* player) {
     TrackInfoPerPlayer* track_info = NULL;
     TrackInfoPerPlayer h = {.player = player};
