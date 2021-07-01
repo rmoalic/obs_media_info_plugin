@@ -231,7 +231,7 @@ static DBusHandlerResult my_message_handler_dbus(DBusConnection *connection, DBu
                                DBUS_TYPE_INVALID)) {
         puts("error");
     }
-    bool registering_name = strlen("old_name") == 0;
+    bool registering_name = old_name != NULL && strlen(old_name) == 0;
     if (registering_name) {
         printf("registration of %s as %s\n", new_name, name);
     } else {

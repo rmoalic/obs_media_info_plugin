@@ -102,12 +102,14 @@ static TrackInfoPerPlayer* track_info_get_for_player(const char* name) {
 
 void track_info_register_track_change(const char* name, TrackInfo track) {
     TrackInfoPerPlayer* track_info = track_info_get_for_player(name);
+    if (track_info == NULL) return;
 
     track_info_dup(track, &(track_info->track));
 }
 
 void track_info_register_state_change(const char* name, bool playing) {
     TrackInfoPerPlayer* track_info = track_info_get_for_player(name);
+    if (track_info == NULL) return;
 
     track_info->playing = playing;
 }
