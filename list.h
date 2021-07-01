@@ -13,6 +13,7 @@ typedef struct list_element* list;
 
 void list_init(list* l);
 bool list_is_empty(list l);
+int list_size(list l);
 void list_prepend(list *l, void* element, size_t e_size);
 void list_append(list *l, void* element, size_t e_size);
 void list_remove(list *l, void* element_to_delete, int (*element_cmp)(void*, void*));

@@ -12,6 +12,16 @@ bool list_is_empty(list l) {
     return l == NULL;
 }
 
+int list_size(list l) {
+    struct list_element* curr = l;
+    int n = 0;
+    while (curr != NULL) {
+        n = n + 1;
+        curr = curr->next;
+    }
+    return n;
+}
+
 static struct list_element* init_element(void* element, size_t e_size) {
     struct list_element* new = malloc(sizeof(struct list_element));
 /*    new->element = malloc(e_size);
