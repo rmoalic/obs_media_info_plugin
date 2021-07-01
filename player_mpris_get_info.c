@@ -226,51 +226,31 @@ static DBusHandlerResult my_message_handler_dbus(DBusConnection *connection, DBu
 
     dbus_error_init(&error);
 
-    char* names[3] = {NULL, NULL, NULL};
-    int i = 0;
+    const char *name;
+    const char *old_name;
+    const char *new_name;
 
-    dbus_message_iter_init (message, &iter);
-    while ((current_type = dbus_message_iter_get_arg_type (&iter)) != DBUS_TYPE_INVALID) {
-
-        switch (current_type) {
-        case DBUS_TYPE_STRING: {
-            assert(i < 3);
-            dbus_message_iter_get_basic(&iter, &names[i]);
-            i = i + 1;
-        } break;
-        default:
-            fprintf(stderr, "parse error\n");
-        }
-        dbus_message_iter_next(&iter);
+    if (!dbus_message_get_args(message, NULL,
+                               DBUS_TYPE_STRING, &name,
+                               DBUS_TYPE_STRING, &old_name,
+                               DBUS_TYPE_STRING, &new_name,
+                               DBUS_TYPE_INVALID)) {
+        puts("error");
+    }
+    bool registering_name = strlen("old_name") == 0;
+    if (registering_name) {
+        printf("registration of %s as %s\n", new_name, name);
+    } else {
+        printf("unregistering of %s as %s\n", old_name, name);
     }
 
-    char* custom_name = NULL;
-    char* assigned_name = NULL;
+    if (strncmp(name, MPRIS_NAME_START, strlen(MPRIS_NAME_START)) == 0) { // if mpris name
+        if (registering_name) {
 
-    bool empty_line_flag_passed = false;
-    bool registering_name = true;
-    for (int j = 0; j < 3; j++) {
-        if (names[j] == NULL) {
-        } else if (strlen(names[j]) == 0) {
-            empty_line_flag_passed = true;
-            if (j == 2) { // is last
-                registering_name = false;
-            }
-        } else if (strncmp(names[j], MPRIS_NAME_START, strlen(MPRIS_NAME_START)) == 0) {
-            custom_name = names[j];
-        } else if (strncmp(names[j], DBUS_NAME_START, strlen(DBUS_NAME_START)) == 0) {
-            assigned_name = names[j];
         } else {
-            printf("not handled %s\n", names[j]);
+            track_info_unregister_player(old_name);
         }
     }
-
-    printf("%s of %s as %s\n", (registering_name ? "registration":"unregistering"), assigned_name, custom_name);
-
-    if (custom_name != NULL && ! registering_name) { // unregistering mpris player
-        track_info_unregister_player(assigned_name);
-    }
-
     return DBUS_HANDLER_RESULT_HANDLED;
 }
 
