@@ -4,6 +4,11 @@
 #include <time.h>
 #include <stdbool.h>
 
+typedef struct track_info_player {
+    const char* name;
+    const char* fancy_name;
+} TrackInfoPlayer;
+
 typedef struct track_info {
     char* title;
     char* artist;
@@ -21,4 +26,5 @@ TrackInfo* track_info_get_best_cantidate();
 void track_info_print_players();
 void track_info_unregister_player(const char* player);
 void track_info_register_player(const char* player, const char* player_fancy_name);
+TrackInfoPlayer** track_info_get_players(int* ret_nb);
 #endif

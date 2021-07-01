@@ -123,9 +123,14 @@ static obs_properties_t* obsmed_get_properties(void *data)
     obsmed_source* d = data;
     obs_properties_t *props = obs_properties_create();
 
-    obs_properties_add_font(props, "font", obs_module_text("Font"));
-    obs_properties_add_text(props, "text", obs_module_text("Text"), OBS_TEXT_MULTILINE);
-
+    obs_property_t* player_list = obs_properties_add_list(props, "Preferred player", obs_module_text("Preferred player"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+    obs_property_list_add_string(player_list, "None", "None");
+    int nb_players;
+    TrackInfoPlayer** players = track_info_get_players(&nb_players);
+    for (int i = 0; i < nb_players; i++) {
+        obs_property_list_add_string(player_list, players[i]->fancy_name, players[i]->fancy_name);
+    }
+    free(players);
     return props;
 }
 

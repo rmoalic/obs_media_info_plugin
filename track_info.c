@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include <stdbool.h>
 #include "track_info.h"
 #include "list.h"
@@ -9,8 +10,7 @@
 #define estrcmp(a, b) ((a == NULL || b == NULL) ? 0 : strcmp(a, b))
 
 typedef struct track_info_per_player {
-    const char* player;
-    const char* fancy_player_name;
+    TrackInfoPlayer player;
     TrackInfo track;
     bool playing;
 } TrackInfoPerPlayer;
@@ -18,7 +18,7 @@ typedef struct track_info_per_player {
 list players;
 
 static int players_name_cmp(TrackInfoPerPlayer* a, TrackInfoPerPlayer* b) {
-    return strcmp(a->player, b->player);
+    return strcmp(a->player.name, b->player.name);
 }
 
 void track_info_init() {
@@ -45,6 +45,23 @@ TrackInfo* track_info_get_best_cantidate() {
     return best_candidate;
 }
 
+TrackInfoPlayer** track_info_get_players(int* ret_nb) {
+    struct list_element* curr = players;
+    int nb_player = list_size(players);
+
+    TrackInfoPlayer** ret = malloc(sizeof(TrackInfoPlayer*) * nb_player);
+
+    *ret_nb = 0;
+    while (curr != NULL) {
+        TrackInfoPerPlayer* e = curr->element;
+        ret[*ret_nb] = &(e->player);
+        curr = curr->next;
+        *ret_nb = *ret_nb + 1;
+    }
+    assert(nb_player == *ret_nb);
+    return ret;
+}
+
 static void track_info_dup(TrackInfo t, TrackInfo* ret) {
     ret->album = strdup(t.album);
     ret->artist = strdup(t.artist);
@@ -60,37 +77,37 @@ void track_info_free(TrackInfo* ti) {
     efree(ti->album_art_url);
 }
 
-void track_info_register_player(const char* player, const char* player_fancy_name){
+void track_info_register_player(const char* name, const char* fancy_name){
     TrackInfoPerPlayer* track_info = malloc(sizeof(TrackInfoPerPlayer));;
-    track_info->player = strdup(player);
-    track_info->fancy_player_name = strdup(player_fancy_name);
+    track_info->player.name = strdup(name);
+    track_info->player.fancy_name = strdup(fancy_name);
     list_prepend(&players, track_info, sizeof(TrackInfoPerPlayer));
 }
 
-void track_info_unregister_player(const char* player) {
-    TrackInfoPerPlayer h = {.player = player};
+void track_info_unregister_player(const char* name) {
+    TrackInfoPerPlayer h = {.player.name = name};
     list_remove(&players, &h, (list_cmpfunc) players_name_cmp);
 }
 
-static TrackInfoPerPlayer* track_info_get_for_player(const char* player) {
+static TrackInfoPerPlayer* track_info_get_for_player(const char* name) {
     TrackInfoPerPlayer* track_info = NULL;
-    TrackInfoPerPlayer h = {.player = player};
+    TrackInfoPerPlayer h = {.player.name = name};
     if (list_search(&players, &h, (list_cmpfunc) players_name_cmp, (void**) &track_info)) {
-        printf("Found already registered player %s (%s)\n", player, track_info->fancy_player_name);
+        printf("Found already registered player %s (%s)\n", name, track_info->player.fancy_name);
     } else {
-        printf("Unknown player %s\n", player);
+        printf("Unknown player %s\n", name);
     }
     return track_info;
 }
 
-void track_info_register_track_change(const char* player, TrackInfo track) {
-    TrackInfoPerPlayer* track_info = track_info_get_for_player(player);
+void track_info_register_track_change(const char* name, TrackInfo track) {
+    TrackInfoPerPlayer* track_info = track_info_get_for_player(name);
 
     track_info_dup(track, &(track_info->track));
 }
 
-void track_info_register_state_change(const char* player, bool playing) {
-    TrackInfoPerPlayer* track_info = track_info_get_for_player(player);
+void track_info_register_state_change(const char* name, bool playing) {
+    TrackInfoPerPlayer* track_info = track_info_get_for_player(name);
 
     track_info->playing = playing;
 }
@@ -101,7 +118,7 @@ void track_info_print_players() {
     int i = 0;
     while (curr != NULL) {
         TrackInfoPerPlayer* e = curr->element;
-        printf("Player %d: %s (%s)\n", i, e->player, e->fancy_player_name);
+        printf("Player %d: %s (%s)\n", i, e->player.name, e->player.fancy_name);
         printf("> ");
         track_info_print(e->track);
         printf("playing: %d\n\n", e->playing);
