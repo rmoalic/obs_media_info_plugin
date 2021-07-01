@@ -10,21 +10,9 @@
 
 #define NB_PLAYER_MAX 10
 
-typedef struct track_info_per_player {
-    TrackInfo track;
-    char* player;
-    bool playing;
-} TrackInfoPerPlayer;
-
-TrackInfoPerPlayer tipp[NB_PLAYER_MAX] = {0};
-TrackInfoPerPlayer* tipp_head = NULL;
-
-static void tipp_store_change(TrackInfoPerPlayer info) {
-
-}
-
 DBusConnection* dbus;
 TrackInfo current_track;
+bool playing;
 
 static int decodeURIComponent (char *sSource, char *sDest) { // https://stackoverflow.com/a/20437049
     int nLength;
@@ -156,6 +144,11 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret) {
                 dbus_message_iter_recurse(iter, &sub);
                 dbus_message_iter_get_basic(&sub, &status);
                 printf("Status: %s\n", status);
+                if (strcmp(status, "Playing") == 0) {
+                    playing = true;
+                } else {
+                    playing = false;
+                }
             } else if (strcmp(property_name, "Metadata") == 0) {
                 dbus_message_iter_recurse(iter, &sub);
                 dbus_message_iter_recurse(&sub, &subsub);
@@ -176,13 +169,13 @@ static DBusHandlerResult my_message_handler(DBusConnection *connection, DBusMess
     DBusMessageIter iter, sub, subsub;
     int current_type;
     bool updated_data = false;
+    bool old_playing = playing;
 
     dbus_error_init(&error);
-    printf("\n\nreceived message from %s\n", dbus_message_get_sender(message));
-
-    //track_info_free(&current_track);
 
     const char* property_name;
+    const char* player = dbus_message_get_sender(message);
+    printf("\n\nreceived message from %s\n", player);
 
     dbus_message_iter_init (message, &iter);
     while ((current_type = dbus_message_iter_get_arg_type (&iter)) != DBUS_TYPE_INVALID) {
@@ -210,9 +203,14 @@ static DBusHandlerResult my_message_handler(DBusConnection *connection, DBusMess
 
     if (updated_data) {
         current_track.update_time = time(NULL);
+        track_info_register_track_change(player, current_track);
     }
 
-    track_info_print(current_track);
+    if (playing != old_playing) {
+        track_info_register_state_change(player, playing);
+    }
+
+    track_info_print_players();
 
     return DBUS_HANDLER_RESULT_HANDLED;
 }
@@ -256,6 +254,7 @@ void mpris_init() {
     dbus = mydbus_init_session();
 
     mydbus_add_matches(dbus);
+    track_info_init();
 }
 
 int mpris_process() {

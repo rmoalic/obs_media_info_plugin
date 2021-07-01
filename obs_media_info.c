@@ -8,7 +8,6 @@
 #include <obs/graphics/graphics.h>
 #include "track_info.h"
 
-extern TrackInfo current_track; //TODO: wrapper to get current_track of interest
 void mpris_init();
 int mpris_process();
 
@@ -31,29 +30,42 @@ void* update_func(void* arg) {
     obsmed_source* source = arg;
     char* last_track_url = strdup("");
     time_t last_update_time = time(NULL);
+    TrackInfo* last_track = NULL;
+    bool changed = false;
 
     while (! source->end_update_thread) {
-        mpris_process(); // Get new data into current_track
+        mpris_process(); // Get new data
 
-        if (current_track.update_time > last_update_time) {
-            last_update_time = current_track.update_time;
+        TrackInfo* current_track = track_info_get_best_cantidate();
 
-            if (current_track.album_art_url != NULL && strcmp(last_track_url, current_track.album_art_url) != 0) {
+        if (current_track != last_track) {
+            last_track = current_track;
+            changed = true;
+        }
+
+        if (current_track != NULL && current_track->update_time > last_update_time) {
+            changed = true;
+            last_update_time = current_track->update_time;
+        }
+
+        if (changed) {
+            if (current_track->album_art_url != NULL && strcmp(last_track_url, current_track->album_art_url) != 0) {
                 if (last_track_url != NULL) free(last_track_url);
 
                 pthread_mutex_lock(source->texture_mutex);
                 obs_enter_graphics();
                 if (source->texture != NULL) gs_texture_destroy(source->texture);
-                source->texture = gs_texture_create_from_file(current_track.album_art_url); //TODO: texture from http only works with obs's ffmpeg backend not with imageMagic.
+                //TODO: syncronise texture and text updating
+                source->texture = gs_texture_create_from_file(current_track->album_art_url); //TODO: texture from http only works with obs's ffmpeg backend not with imageMagic.
                 if (source->texture == NULL) puts("error loading texture");
                 obs_leave_graphics();
                 pthread_mutex_unlock(source->texture_mutex);
 
-                last_track_url = strdup(current_track.album_art_url);
+                last_track_url = strdup(current_track->album_art_url);
             }
 
             char text2[200];
-            snprintf(text2, 199, "%s\n%s\n%s", current_track.title, current_track.album, current_track.artist);
+            snprintf(text2, 199, "%s\n%s\n%s", current_track->title, current_track->album, current_track->artist);
             obs_source_t* text = obs_get_source_by_name("toto");
             obs_data_t* tdata = obs_data_create();
             obs_data_set_string(tdata, "text", text2);
