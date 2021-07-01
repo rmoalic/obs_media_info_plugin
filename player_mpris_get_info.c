@@ -10,6 +10,8 @@
 #include "track_info.h"
 
 #define NB_PLAYER_MAX 10
+static const char* MPRIS_NAME_START = "org.mpris.MediaPlayer2";
+static const char* DBUS_NAME_START = ":";
 
 DBusConnection* dbus;
 TrackInfo current_track;
@@ -218,14 +220,6 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
 }
 
 static DBusHandlerResult my_message_handler_dbus(DBusConnection *connection, DBusMessage *message, void *user_data) {
-    const char* MPRIS_NAME_START = "org.mpris.MediaPlayer2";
-    const char* DBUS_NAME_START = ":";
-    DBusError error;
-    DBusMessageIter iter;
-    int current_type;
-
-    dbus_error_init(&error);
-
     const char *name;
     const char *old_name;
     const char *new_name;
@@ -246,7 +240,7 @@ static DBusHandlerResult my_message_handler_dbus(DBusConnection *connection, DBu
 
     if (strncmp(name, MPRIS_NAME_START, strlen(MPRIS_NAME_START)) == 0) { // if mpris name
         if (registering_name) {
-
+            track_info_register_player(new_name, name);
         } else {
             track_info_unregister_player(old_name);
         }
@@ -270,6 +264,79 @@ static DBusHandlerResult my_message_handler(DBusConnection *connection, DBusMess
 
     return ret;
 }
+
+static char* mydbus_get_name_owner(const char* name) {
+    DBusMessage* msg, *resp;
+    DBusMessageIter imsg;
+    DBusPendingCall* resp_pending = NULL;
+    char* ret;
+
+    msg = dbus_message_new_method_call("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "GetNameOwner");
+    dbus_message_iter_init_append(msg, &imsg);
+    dbus_message_iter_append_basic(&imsg, DBUS_TYPE_STRING, &name);
+
+    if (! dbus_connection_send_with_reply(dbus, msg, &resp_pending, -1)) {
+        fprintf(stderr, "Out Of Memory!\n");
+    }
+
+    dbus_pending_call_block(resp_pending); //TODO: remove blocking call
+
+    if (dbus_pending_call_get_completed(resp_pending)) {
+        resp = dbus_pending_call_steal_reply(resp_pending);
+        char* name;
+
+        if (!dbus_message_get_args(resp, NULL,
+                                   DBUS_TYPE_STRING, &name,
+                                   DBUS_TYPE_INVALID)) {
+            puts("error");
+        }
+        ret = strdup(name);
+    }
+    dbus_message_unref(msg);
+    dbus_message_unref(resp);
+
+    return ret;
+}
+
+static void mydbus_register_names()
+{
+    DBusMessage* msg, *resp;
+    DBusPendingCall* resp_pending = NULL;
+
+    msg = dbus_message_new_method_call("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "ListNames");
+
+    if (! dbus_connection_send_with_reply(dbus, msg, &resp_pending, -1)) {
+        fprintf(stderr, "Out Of Memory!\n");
+    }
+
+    dbus_pending_call_block(resp_pending); //TODO: remove blocking call
+
+    if (dbus_pending_call_get_completed(resp_pending)) {
+        resp = dbus_pending_call_steal_reply(resp_pending);
+        int current_type;
+        DBusMessageIter iter, iter2;
+
+        dbus_message_iter_init (resp, &iter);
+        if (dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_ARRAY) {
+            dbus_message_iter_recurse(&iter, &iter2); // Array of String
+            while ((current_type = dbus_message_iter_get_arg_type (&iter2)) != DBUS_TYPE_INVALID) {
+                if (current_type == DBUS_TYPE_STRING) {
+                    char* name;
+                    dbus_message_iter_get_basic(&iter2, &name);
+                    if (strncmp(name, MPRIS_NAME_START, strlen(MPRIS_NAME_START)) == 0) { // if mpris name
+                        char* unique_name = mydbus_get_name_owner(name);
+                        track_info_register_player(unique_name, name);
+                        free(unique_name);
+                    }
+                }
+                dbus_message_iter_next(&iter2);
+            }
+        }
+    }
+    dbus_message_unref(msg);
+    dbus_message_unref(resp);
+}
+
 
 static DBusConnection* mydbus_init_session()
 {
@@ -318,6 +385,8 @@ void mpris_init() {
 
     mydbus_add_matches(dbus);
     track_info_init();
+
+    mydbus_register_names();
 }
 
 int mpris_process() {

@@ -10,6 +10,7 @@
 
 typedef struct track_info_per_player {
     const char* player;
+    const char* fancy_player_name;
     TrackInfo track;
     bool playing;
 } TrackInfoPerPlayer;
@@ -59,6 +60,13 @@ void track_info_free(TrackInfo* ti) {
     efree(ti->album_art_url);
 }
 
+void track_info_register_player(const char* player, const char* player_fancy_name){
+    TrackInfoPerPlayer* track_info = malloc(sizeof(TrackInfoPerPlayer));;
+    track_info->player = strdup(player);
+    track_info->fancy_player_name = strdup(player_fancy_name);
+    list_prepend(&players, track_info, sizeof(TrackInfoPerPlayer));
+}
+
 void track_info_unregister_player(const char* player) {
     TrackInfoPerPlayer h = {.player = player};
     list_remove(&players, &h, (list_cmpfunc) players_name_cmp);
@@ -68,12 +76,9 @@ static TrackInfoPerPlayer* track_info_get_for_player(const char* player) {
     TrackInfoPerPlayer* track_info = NULL;
     TrackInfoPerPlayer h = {.player = player};
     if (list_search(&players, &h, (list_cmpfunc) players_name_cmp, (void**) &track_info)) {
-        printf("Found already registered player %s\n", player);
+        printf("Found already registered player %s (%s)\n", player, track_info->fancy_player_name);
     } else {
-        track_info = malloc(sizeof(TrackInfoPerPlayer));
-        track_info->player = strdup(player);
-        printf("Appened %s to list\n", player);
-        list_prepend(&players, track_info, sizeof(TrackInfoPerPlayer));
+        printf("Unknown player %s\n", player);
     }
     return track_info;
 }
@@ -96,7 +101,7 @@ void track_info_print_players() {
     int i = 0;
     while (curr != NULL) {
         TrackInfoPerPlayer* e = curr->element;
-        printf("Player %d: %s\n", i, e->player);
+        printf("Player %d: %s (%s)\n", i, e->player, e->fancy_player_name);
         printf("> ");
         track_info_print(e->track);
         printf("playing: %d\n\n", e->playing);
