@@ -7,6 +7,7 @@
 #include <obs/util/threading.h>
 #include <obs/graphics/graphics.h>
 #include "track_info.h"
+#include "utils.h"
 
 void mpris_init();
 int mpris_process();
@@ -25,10 +26,20 @@ const char* obsmed_get_name(void* type_data) {
     return "Media infos";
 }
 
+static void update_obs_text_source(char* source_name, char* new_text) {
+    obs_source_t* text_source = obs_get_source_by_name(source_name);
+    obs_data_t* tdata = obs_data_create();
+
+    obs_data_set_string(tdata, "text", new_text);
+    obs_source_update(text_source, tdata);
+
+    obs_data_release(tdata);
+    obs_source_release(text_source);
+}
 
 void* update_func(void* arg) {
     obsmed_source* source = arg;
-    char* last_track_url = strdup("");
+    char* last_track_url = NULL;
     time_t last_update_time = time(NULL);
     TrackInfo* last_track = NULL;
     bool changed = false;
@@ -49,9 +60,10 @@ void* update_func(void* arg) {
         }
 
         if (changed && current_track != NULL) {
-            if (current_track->album_art_url != NULL && strcmp(last_track_url, current_track->album_art_url) != 0) {
-                if (last_track_url != NULL) free(last_track_url);
-
+            if (current_track->album_art_url != NULL &&
+                    (last_track_url == NULL ||
+                     strcmp(last_track_url, current_track->album_art_url) != 0)
+               ) {
                 pthread_mutex_lock(source->texture_mutex);
                 obs_enter_graphics();
                 if (source->texture != NULL) gs_texture_destroy(source->texture);
@@ -61,25 +73,24 @@ void* update_func(void* arg) {
                 obs_leave_graphics();
                 pthread_mutex_unlock(source->texture_mutex);
 
+                if (last_track_url != NULL) free(last_track_url);
                 last_track_url = strdup(current_track->album_art_url);
+                allocfail_print(last_track_url);
             }
 
-            char text2[200];
-            snprintf(text2, 199, "%s\n%s\n%s", current_track->title, current_track->album, current_track->artist);
-            obs_source_t* text = obs_get_source_by_name("toto");
-            obs_data_t* tdata = obs_data_create();
-            obs_data_set_string(tdata, "text", text2);
-            obs_source_update(text, tdata);
-            obs_data_release(tdata);
-            obs_source_release(text);
+            char text[200];
+            snprintf(text, 199, "%s\n%s\n%s", current_track->title, current_track->album, current_track->artist);
+            update_obs_text_source("toto", text);
         }
         os_sleep_ms(500);
     }
+    free(last_track_url);
     pthread_exit(NULL);
 }
 
 void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     obsmed_source* data = bmalloc(sizeof(obsmed_source));
+    allocfail_exit(data);
     mpris_init();
 
     data->width = 300;
@@ -88,6 +99,7 @@ void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
 
     data->end_update_thread = false;
     data->texture_mutex = bmalloc(sizeof(pthread_mutex_t));
+    allocfail_exit(data->texture_mutex);
     pthread_mutex_init(data->texture_mutex, NULL);
     if(pthread_create(&(data->update_thread), NULL, update_func, data)) {
         fprintf(stderr, "Error creating thread\n");
@@ -120,7 +132,7 @@ uint32_t obsmed_get_height(void* data) {
 
 static obs_properties_t* obsmed_get_properties(void *data)
 {
-    obsmed_source* d = data;
+//    obsmed_source* d = data;
     obs_properties_t *props = obs_properties_create();
 
     obs_property_t* player_list = obs_properties_add_list(props, "Preferred player", obs_module_text("Preferred player"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);

@@ -8,10 +8,10 @@
 #include <assert.h>
 #include <dbus/dbus.h>
 #include "track_info.h"
+#include "utils.h"
 
 #define NB_PLAYER_MAX 10
-static const char* MPRIS_NAME_START = "org.mpris.MediaPlayer2";
-static const char* DBUS_NAME_START = ":";
+static const char MPRIS_NAME_START[] = "org.mpris.MediaPlayer2";
 
 DBusConnection* dbus;
 TrackInfo current_track;
@@ -36,19 +36,22 @@ static int decodeURIComponent (char *sSource, char *sDest) { // https://stackove
 #define implodeURIComponent(url) decodeURIComponent(url, url)
 
 static char* correct_art_url(const char* url) {
-    static const char* spotify_old = "https://open.spotify.com/image/";
-    static const char* spotify_new = "https://i.scdn.co/image/";
-    static const char* file_url = "file://";
+    static const char spotify_old[] = "https://open.spotify.com/image/";
+    static const char spotify_new[] = "https://i.scdn.co/image/";
+    static const char file_url[] = "file://";
     char* ret;
-    if (strncmp(spotify_old, url, strlen(spotify_old)) == 0) {
-        ret = malloc(100 * sizeof(char)); // TODO: correct size
-        sprintf(ret, "%s%s", spotify_new, url + strlen(spotify_old));
-    } else if (strncmp(file_url, url, strlen(file_url)) == 0) {
-        ret = malloc(100 * sizeof(char)); // TODO: correct size
-        sprintf(ret, "%s", url + strlen(file_url));
+    if (strncmp(spotify_old, url, sizeof(spotify_old)) == 0) {
+        ret = malloc((1 + strlen(url) - (sizeof(spotify_old) - sizeof(spotify_new))) * sizeof(char));
+        allocfail_return_null(ret);
+        sprintf(ret, "%s%s", spotify_new, url + sizeof(spotify_old));
+    } else if (strncmp(file_url, url, sizeof(file_url)) == 0) {
+        ret = malloc((1 + strlen(url) - sizeof(file_url)) * sizeof(char));
+        allocfail_return_null(ret);
+        sprintf(ret, "%s", url + sizeof(file_url));
         implodeURIComponent(ret); //TODO: file url decode on windows
     } else {
         ret = strdup(url);
+        allocfail_return_null(ret);
     }
     return ret;
 }
@@ -59,6 +62,7 @@ static bool update_data_if_diff(char** store, const char* new) {
     if (*store == NULL || strcmp(*store, new) != 0) {
         if (*store != NULL) free(*store);
         *store = strdup(new);
+        allocfail_return_null(*store);
         ret = true;
     }
     return ret;
@@ -82,6 +86,10 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret) {
 
         } break;
         case DBUS_TYPE_VARIANT: {
+            if (property_name == NULL) {
+                printf("Error: Encontered property before its name, ignoring\n");
+                continue;
+            }
             if (strcmp(property_name, "xesam:title") == 0) {
                 char* title;
                 dbus_message_iter_recurse(iter, &sub);
@@ -142,6 +150,10 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret) {
             printf("%s\n", property_name);
         } break;
         case DBUS_TYPE_VARIANT: {
+            if (property_name == NULL) {
+                printf("Error: Encontered property before its name, ignoring\n");
+                continue;
+            }
             if (strcmp(property_name, "PlaybackStatus") == 0) {
                 char* status;
                 dbus_message_iter_recurse(iter, &sub);
@@ -169,7 +181,7 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret) {
 
 static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DBusMessage *message, void *user_data) {
     DBusError error;
-    DBusMessageIter iter, sub, subsub;
+    DBusMessageIter iter, sub;
     int current_type;
     bool updated_data = false;
     bool old_playing = playing;
@@ -223,13 +235,18 @@ static DBusHandlerResult my_message_handler_dbus(DBusConnection *connection, DBu
     const char *name;
     const char *old_name;
     const char *new_name;
+    DBusError error;
 
-    if (!dbus_message_get_args(message, NULL,
+    if (!dbus_message_get_args(message, &error,
                                DBUS_TYPE_STRING, &name,
                                DBUS_TYPE_STRING, &old_name,
                                DBUS_TYPE_STRING, &new_name,
                                DBUS_TYPE_INVALID)) {
-        puts("error");
+        if (dbus_error_is_set(&error)) {
+            fprintf(stderr, "Error while reading new names signal (%s)\n", error.message);
+            dbus_error_free(&error);
+        }
+        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
     bool registering_name = old_name != NULL && strlen(old_name) == 0;
     if (registering_name) {
@@ -238,7 +255,7 @@ static DBusHandlerResult my_message_handler_dbus(DBusConnection *connection, DBu
         printf("unregistering of %s as %s\n", old_name, name);
     }
 
-    if (strncmp(name, MPRIS_NAME_START, strlen(MPRIS_NAME_START)) == 0) { // if mpris name
+    if (strncmp(MPRIS_NAME_START, name, sizeof(MPRIS_NAME_START)) == 0) { // if mpris name
         if (registering_name) {
             track_info_register_player(new_name, name);
         } else {
@@ -266,10 +283,10 @@ static DBusHandlerResult my_message_handler(DBusConnection *connection, DBusMess
 }
 
 static char* mydbus_get_name_owner(const char* name) {
-    DBusMessage* msg, *resp;
+    DBusMessage* msg;
     DBusMessageIter imsg;
     DBusPendingCall* resp_pending = NULL;
-    char* ret;
+    char* ret = NULL;
 
     msg = dbus_message_new_method_call("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "GetNameOwner");
     dbus_message_iter_init_append(msg, &imsg);
@@ -282,25 +299,30 @@ static char* mydbus_get_name_owner(const char* name) {
     dbus_pending_call_block(resp_pending); //TODO: remove blocking call
 
     if (dbus_pending_call_get_completed(resp_pending)) {
+        DBusMessage* resp;
+        DBusError error;
         resp = dbus_pending_call_steal_reply(resp_pending);
         char* name;
 
-        if (!dbus_message_get_args(resp, NULL,
-                                   DBUS_TYPE_STRING, &name,
-                                   DBUS_TYPE_INVALID)) {
-            puts("error");
+        if (! dbus_message_get_args(resp, &error,
+                                    DBUS_TYPE_STRING, &name,
+                                    DBUS_TYPE_INVALID)) {
+            if (dbus_error_is_set(&error)) {
+                fprintf(stderr, "Error while reading owner name (%s)\n", error.message);
+                dbus_error_free(&error);
+            }
         }
         ret = strdup(name);
+        allocfail_print(ret);
+        dbus_message_unref(resp);
     }
     dbus_message_unref(msg);
-    dbus_message_unref(resp);
-
     return ret;
 }
 
 static void mydbus_register_names()
 {
-    DBusMessage* msg, *resp;
+    DBusMessage* msg;
     DBusPendingCall* resp_pending = NULL;
 
     msg = dbus_message_new_method_call("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "ListNames");
@@ -312,6 +334,7 @@ static void mydbus_register_names()
     dbus_pending_call_block(resp_pending); //TODO: remove blocking call
 
     if (dbus_pending_call_get_completed(resp_pending)) {
+        DBusMessage* resp;
         resp = dbus_pending_call_steal_reply(resp_pending);
         int current_type;
         DBusMessageIter iter, iter2;
@@ -323,7 +346,7 @@ static void mydbus_register_names()
                 if (current_type == DBUS_TYPE_STRING) {
                     char* name;
                     dbus_message_iter_get_basic(&iter2, &name);
-                    if (strncmp(name, MPRIS_NAME_START, strlen(MPRIS_NAME_START)) == 0) { // if mpris name
+                    if (strncmp(name, MPRIS_NAME_START, sizeof(MPRIS_NAME_START)) == 0) { // if mpris name
                         char* unique_name = mydbus_get_name_owner(name);
                         track_info_register_player(unique_name, name);
                         free(unique_name);
@@ -332,9 +355,9 @@ static void mydbus_register_names()
                 dbus_message_iter_next(&iter2);
             }
         }
+        dbus_message_unref(resp);
     }
     dbus_message_unref(msg);
-    dbus_message_unref(resp);
 }
 
 

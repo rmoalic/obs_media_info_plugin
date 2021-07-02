@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
@@ -24,9 +25,13 @@ int list_size(list l) {
 
 static struct list_element* init_element(void* element, size_t e_size) {
     struct list_element* new = malloc(sizeof(struct list_element));
-/*    new->element = malloc(e_size);
+    if (new == NULL) {
+        perror("malloc");
+        return NULL;
+    }
+    /*    new->element = malloc(e_size);
 
-      memcpy(new->element, element, e_size);*/
+          memcpy(new->element, element, e_size);*/
     new->element = element;
     new->next = NULL;
 

@@ -5,9 +5,7 @@
 #include <stdbool.h>
 #include "track_info.h"
 #include "list.h"
-
-#define efree(ptr) if (ptr != NULL) { free(ptr); ptr = NULL; }
-#define estrcmp(a, b) ((a == NULL || b == NULL) ? 0 : strcmp(a, b))
+#include "utils.h"
 
 typedef struct track_info_per_player {
     TrackInfoPlayer player;
@@ -50,6 +48,7 @@ TrackInfoPlayer** track_info_get_players(int* ret_nb) {
     int nb_player = list_size(players);
 
     TrackInfoPlayer** ret = malloc(sizeof(TrackInfoPlayer*) * nb_player);
+    allocfail_return_null(ret);
 
     *ret_nb = 0;
     while (curr != NULL) {
@@ -79,8 +78,11 @@ void track_info_free(TrackInfo* ti) {
 
 void track_info_register_player(const char* name, const char* fancy_name){
     TrackInfoPerPlayer* track_info = malloc(sizeof(TrackInfoPerPlayer));;
+    allocfail_return(track_info);
     track_info->player.name = strdup(name);
+    allocfail_return(track_info->player.name);
     track_info->player.fancy_name = strdup(fancy_name);
+    allocfail_return(track_info->player.fancy_name);
     list_prepend(&players, track_info, sizeof(TrackInfoPerPlayer));
 }
 
