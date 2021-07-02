@@ -1,16 +1,15 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
+#include <obs/obs.h>
 #include <obs/obs-module.h>
 #include <obs/util/bmem.h>
 #include <obs/util/platform.h>
 #include <obs/util/threading.h>
 #include <obs/graphics/graphics.h>
+#include "player_mpris_get_info.h"
 #include "track_info.h"
 #include "utils.h"
-
-void mpris_init();
-int mpris_process();
 
 typedef struct source {
     bool live;
@@ -22,7 +21,7 @@ typedef struct source {
     gs_texture_t* texture;
 } obsmed_source;
 
-const char* obsmed_get_name(void* type_data) {
+static const char* obsmed_get_name(void* type_data) {
     return "Media infos";
 }
 
@@ -37,7 +36,7 @@ static void update_obs_text_source(char* source_name, char* new_text) {
     obs_source_release(text_source);
 }
 
-void* update_func(void* arg) {
+static void* update_func(void* arg) {
     mpris_init();
     obsmed_source* source = arg;
     char* last_track_url = NULL;
@@ -89,7 +88,7 @@ void* update_func(void* arg) {
     pthread_exit(NULL);
 }
 
-void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
+static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     obsmed_source* data = bmalloc(sizeof(obsmed_source));
     allocfail_exit(data);
 
@@ -109,7 +108,7 @@ void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     return data;
 }
 
-void obsmed_destroy(void* d) {
+static void obsmed_destroy(void* d) {
     obsmed_source* data = d;
     data->end_update_thread = true;
     pthread_join(data->update_thread, NULL);
@@ -119,12 +118,12 @@ void obsmed_destroy(void* d) {
     bfree(data);
 }
 
-uint32_t obsmed_get_width(void* data) {
+static uint32_t obsmed_get_width(void* data) {
     obsmed_source* d = data;
     return d->width;
 }
 
-uint32_t obsmed_get_height(void* data) {
+static uint32_t obsmed_get_height(void* data) {
     obsmed_source* d = data;
     return d->height;
 }
@@ -149,7 +148,7 @@ static obs_properties_t* obsmed_get_properties(void *data)
 }
 
 
-void obsmed_video_render(void *data, gs_effect_t *effect) {
+static void obsmed_video_render(void *data, gs_effect_t *effect) {
      obsmed_source* d = data;
 
      if (pthread_mutex_trylock(d->texture_mutex) == 0) {
@@ -159,7 +158,7 @@ void obsmed_video_render(void *data, gs_effect_t *effect) {
 }
 
 
-struct obs_source_info obs_media_info = {
+static struct obs_source_info obs_media_info = {
     .id = "obs_media_info",
     .type = OBS_SOURCE_TYPE_INPUT,
     .output_flags = OBS_SOURCE_VIDEO,
@@ -178,7 +177,7 @@ struct obs_source_info obs_media_info = {
 
 
 OBS_DECLARE_MODULE()
-OBS_MODULE_USE_DEFAULT_LOCALE("obs_media_info", "en-US")
+//OBS_MODULE_USE_DEFAULT_LOCALE("obs_media_info", "en-US") //TODO: localisation
 MODULE_EXPORT const char *obs_module_description(void)
 {
     return "Plugin to display the cover artwork and basic informations on the currently playing sound";

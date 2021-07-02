@@ -1,5 +1,6 @@
 CC=clang
-CFLAGS=-g -Wall -Wextra -Wno-unused-parameter -MMD -MP -pedantic
+WARNINGS=-Wall -Wextra -Wmissing-prototypes -Wshadow -Wmissing-variable-declarations -Wextra-semi-stmt -Wnewline-eof -Wno-unused-parameter
+CFLAGS=-g  -MMD -MP -pedantic  $(WARNINGS)
 
 
 .PHONY: all clean

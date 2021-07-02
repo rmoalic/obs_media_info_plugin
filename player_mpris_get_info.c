@@ -7,15 +7,16 @@
 #include <ctype.h>
 #include <assert.h>
 #include <dbus/dbus.h>
+#include "player_mpris_get_info.h"
 #include "track_info.h"
 #include "utils.h"
 
 #define NB_PLAYER_MAX 10
 static const char MPRIS_NAME_START[] = "org.mpris.MediaPlayer2";
 
-DBusConnection* dbus;
-TrackInfo current_track;
-bool playing;
+static DBusConnection* dbus_connection;
+static TrackInfo current_track;
+static bool playing;
 
 static int decodeURIComponent (char *sSource, char *sDest) { // https://stackoverflow.com/a/20437049
     int nLength;
@@ -292,7 +293,7 @@ static DBusHandlerResult my_message_handler(DBusConnection *connection, DBusMess
     return ret;
 }
 
-static char* mydbus_get_name_owner(const char* name) {
+static char* mydbus_get_name_owner(DBusConnection* dbus, const char* name) {
     DBusMessage* msg, *resp;
     DBusMessageIter imsg;
     DBusError error;
@@ -306,16 +307,16 @@ static char* mydbus_get_name_owner(const char* name) {
     if (dbus_error_is_set(&error)) {
         fprintf(stderr, "Error while reading owner name (%s)\n", error.message);
     } else {
-        char* name;
+        char* resp_name;
 
         if (! dbus_message_get_args(resp, &error,
-                                    DBUS_TYPE_STRING, &name,
+                                    DBUS_TYPE_STRING, &resp_name,
                                     DBUS_TYPE_INVALID)) {
             if (dbus_error_is_set(&error)) {
                 fprintf(stderr, "Error while reading owner name (%s)\n", error.message);
             }
         } else {
-            ret = strdup(name);
+            ret = strdup(resp_name);
             allocfail_print(ret);
         }
         dbus_message_unref(resp);
@@ -324,7 +325,7 @@ static char* mydbus_get_name_owner(const char* name) {
     return ret;
 }
 
-static void mydbus_register_names()
+static void mydbus_register_names(DBusConnection* dbus)
 {
     DBusMessage* msg;
     DBusPendingCall* resp_pending = NULL;
@@ -351,7 +352,7 @@ static void mydbus_register_names()
                     char* name;
                     dbus_message_iter_get_basic(&iter2, &name);
                     if (strncmp(MPRIS_NAME_START, name, sizeof(MPRIS_NAME_START) - 1) == 0) { // if mpris name
-                        char* unique_name = mydbus_get_name_owner(name);
+                        char* unique_name = mydbus_get_name_owner(dbus, name);
                         track_info_register_player(unique_name, name);
                         free(unique_name);
                     }
@@ -413,14 +414,14 @@ static void mydbus_add_matches(DBusConnection* dbus) {
 
 
 void mpris_init() {
-    dbus = mydbus_init_session();
+    dbus_connection = mydbus_init_session();
 
-    mydbus_add_matches(dbus);
+    mydbus_add_matches(dbus_connection);
     track_info_init();
 
-    mydbus_register_names();
+    mydbus_register_names(dbus_connection);
 }
 
 int mpris_process() {
-    return dbus_connection_read_write_dispatch(dbus, 500);
+    return dbus_connection_read_write_dispatch(dbus_connection, 500);
 }

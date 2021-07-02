@@ -13,7 +13,7 @@ typedef struct track_info_per_player {
     bool playing;
 } TrackInfoPerPlayer;
 
-list players;
+static list players;
 
 static int players_name_cmp(TrackInfoPerPlayer* a, TrackInfoPerPlayer* b) {
     return strcmp(a->player.name, b->player.name);
@@ -77,7 +77,7 @@ void track_info_free(TrackInfo* ti) {
 }
 
 void track_info_register_player(const char* name, const char* fancy_name){
-    TrackInfoPerPlayer* track_info = malloc(sizeof(TrackInfoPerPlayer));;
+    TrackInfoPerPlayer* track_info = malloc(sizeof(TrackInfoPerPlayer));
     allocfail_return(track_info);
     track_info->player.name = strdup(name);
     allocfail_return(track_info->player.name);
