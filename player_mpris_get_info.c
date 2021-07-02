@@ -11,7 +11,7 @@
 #include "utils.h"
 
 #define NB_PLAYER_MAX 10
-static const char MPRIS_NAME_START[] = "org.mpris.MediaPlayer2";
+static const char* MPRIS_NAME_START = "org.mpris.MediaPlayer2";
 
 DBusConnection* dbus;
 TrackInfo current_track;
@@ -36,19 +36,19 @@ static int decodeURIComponent (char *sSource, char *sDest) { // https://stackove
 #define implodeURIComponent(url) decodeURIComponent(url, url)
 
 static char* correct_art_url(const char* url) {
-    static const char spotify_old[] = "https://open.spotify.com/image/";
-    static const char spotify_new[] = "https://i.scdn.co/image/";
-    static const char file_url[] = "file://";
+    static const char* spotify_old = "https://open.spotify.com/image/";
+    static const char* spotify_new = "https://i.scdn.co/image/";
+    static const char* file_url = "file://";
     char* ret;
-    if (strncmp(spotify_old, url, sizeof(spotify_old)) == 0) {
-        ret = malloc((1 + strlen(url) - (sizeof(spotify_old) - sizeof(spotify_new))) * sizeof(char));
+    if (strncmp(spotify_old, url, strlen(spotify_old)) == 0) {
+        ret = malloc(100 * sizeof(char)); // TODO: correct size
         allocfail_return_null(ret);
-        sprintf(ret, "%s%s", spotify_new, url + sizeof(spotify_old));
-    } else if (strncmp(file_url, url, sizeof(file_url)) == 0) {
-        ret = malloc((1 + strlen(url) - sizeof(file_url)) * sizeof(char));
+        sprintf(ret, "%s%s", spotify_new, url + strlen(spotify_old));
+    } else if (strncmp(file_url, url, strlen(file_url)) == 0) {
+        ret = malloc(100 * sizeof(char)); // TODO: correct size
         allocfail_return_null(ret);
-        sprintf(ret, "%s", url + sizeof(file_url));
-        implodeURIComponent(ret); //TODO: file url decode on windows
+        sprintf(ret, "%s", url + strlen(file_url));
+        implodeURIComponent(ret);
     } else {
         ret = strdup(url);
         allocfail_return_null(ret);
@@ -256,7 +256,7 @@ static DBusHandlerResult my_message_handler_dbus(DBusConnection *connection, DBu
         printf("unregistering of %s as %s\n", old_name, name);
     }
 
-    if (strncmp(MPRIS_NAME_START, name, sizeof(MPRIS_NAME_START)) == 0) { // if mpris name
+    if (strncmp(MPRIS_NAME_START, name, strlen(MPRIS_NAME_START)) == 0) { // if mpris name
         if (registering_name) {
             track_info_register_player(new_name, name);
         } else {
@@ -314,6 +314,7 @@ static char* mydbus_get_name_owner(const char* name) {
             if (dbus_error_is_set(&error)) {
                 fprintf(stderr, "Error while reading owner name (%s)\n", error.message);
             }
+        } else {
             ret = strdup(name);
             allocfail_print(ret);
         }
@@ -349,7 +350,7 @@ static void mydbus_register_names()
                 if (current_type == DBUS_TYPE_STRING) {
                     char* name;
                     dbus_message_iter_get_basic(&iter2, &name);
-                    if (strncmp(name, MPRIS_NAME_START, sizeof(MPRIS_NAME_START)) == 0) { // if mpris name
+                    if (strncmp(MPRIS_NAME_START, name, strlen(MPRIS_NAME_START)) == 0) { // if mpris name
                         char* unique_name = mydbus_get_name_owner(name);
                         track_info_register_player(unique_name, name);
                         free(unique_name);
@@ -423,13 +424,3 @@ void mpris_init() {
 int mpris_process() {
     return dbus_connection_read_write_dispatch(dbus, 500);
 }
-/*
-int main(int argc, char *argv[])
-{
-    mpris_init();
-
-    while (mpris_process()) {}
-
-    return EXIT_SUCCESS;
-}
-*/
