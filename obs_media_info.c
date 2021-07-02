@@ -38,6 +38,7 @@ static void update_obs_text_source(char* source_name, char* new_text) {
 }
 
 void* update_func(void* arg) {
+    mpris_init();
     obsmed_source* source = arg;
     char* last_track_url = NULL;
     time_t last_update_time = time(NULL);
@@ -91,7 +92,6 @@ void* update_func(void* arg) {
 void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     obsmed_source* data = bmalloc(sizeof(obsmed_source));
     allocfail_exit(data);
-    mpris_init();
 
     data->width = 300;
     data->height = 300;
