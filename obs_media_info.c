@@ -139,10 +139,12 @@ static obs_properties_t* obsmed_get_properties(void *data)
     obs_property_list_add_string(player_list, "None", "None");
     int nb_players;
     TrackInfoPlayer** players = track_info_get_players(&nb_players);
-    for (int i = 0; i < nb_players; i++) {
-        obs_property_list_add_string(player_list, players[i]->fancy_name, players[i]->fancy_name);
+    if (players != NULL) {
+        for (int i = 0; i < nb_players; i++) {
+            obs_property_list_add_string(player_list, players[i]->fancy_name, players[i]->fancy_name);
+        }
+        free(players);
     }
-    free(players);
     return props;
 }
 

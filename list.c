@@ -40,6 +40,7 @@ static struct list_element* init_element(void* element, size_t e_size) {
 
 void list_prepend(list *l, void* element, size_t e_size) {
     struct list_element* new = init_element(element, e_size);
+    if (new == NULL) return;
 
     if (list_is_empty(*l)) {
         new->next = NULL;
@@ -52,6 +53,7 @@ void list_prepend(list *l, void* element, size_t e_size) {
 
 void list_append(list *l, void* element, size_t e_size) {
     struct list_element* new = init_element(element, e_size);
+    if (new == NULL) return;
 
     if (list_is_empty(*l)) {
         new->next = NULL;
