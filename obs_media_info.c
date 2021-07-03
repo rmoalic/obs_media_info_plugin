@@ -11,6 +11,10 @@
 #include "track_info.h"
 #include "utils.h"
 
+#define SETTING_SELECTED_PLAYER "SELECTED_PLAYER"
+#define SETTING_NO_SELECTED_PLAYER "None"
+#define SETTING_FALLBACK_SELECTED_PLAYER "FALLBACK_SELECTED_PLAYER"
+
 typedef struct source {
     bool live;
     uint32_t width;
@@ -19,6 +23,8 @@ typedef struct source {
     bool end_update_thread;
     pthread_mutex_t* texture_mutex;
     gs_texture_t* texture;
+    const char* selected_player;
+    bool fallback_if_selected_player_not_running;
 } obsmed_source;
 
 static const char* obsmed_get_name(void* type_data) {
@@ -47,7 +53,16 @@ static void* update_func(void* arg) {
     while (! source->end_update_thread) {
         mpris_process(); // Get new data
 
-        TrackInfo* current_track = track_info_get_best_cantidate();
+        TrackInfo* current_track = NULL;
+        if (strcmp(SETTING_NO_SELECTED_PLAYER, source->selected_player) == 0) {
+            current_track = track_info_get_best_cantidate();
+        } else {
+            assert(source->selected_player != NULL);
+            current_track = track_info_get_from_selected_player_fancy_name(source->selected_player);
+            if (current_track == NULL && source->fallback_if_selected_player_not_running) {
+                current_track = track_info_get_best_cantidate();
+            }
+        }
 
         if (current_track != last_track) {
             last_track = current_track;
@@ -95,6 +110,8 @@ static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     data->width = 300;
     data->height = 300;
     data->texture = NULL;
+    data->selected_player = obs_data_get_string(settings, SETTING_SELECTED_PLAYER);
+    data->fallback_if_selected_player_not_running = obs_data_get_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER);
 
     data->end_update_thread = false;
     data->texture_mutex = bmalloc(sizeof(pthread_mutex_t));
@@ -129,21 +146,37 @@ static uint32_t obsmed_get_height(void* data) {
 }
 
 
+static void obsmed_update(void *data, obs_data_t *settings) {
+    obsmed_source* d = data;
+
+    d->selected_player = obs_data_get_string(settings, SETTING_SELECTED_PLAYER);
+    d->fallback_if_selected_player_not_running = obs_data_get_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER);
+}
+static void obsmed_get_defaults(obs_data_t *settings)
+{
+    obs_data_set_default_string(settings, SETTING_SELECTED_PLAYER, SETTING_NO_SELECTED_PLAYER);
+    obs_data_set_default_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER, false);
+}
+
+
 static obs_properties_t* obsmed_get_properties(void *data)
 {
 //    obsmed_source* d = data;
     obs_properties_t *props = obs_properties_create();
 
-    obs_property_t* player_list = obs_properties_add_list(props, "Preferred player", obs_module_text("Preferred player"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-    obs_property_list_add_string(player_list, "None", "None");
+    obs_property_t* p = obs_properties_add_list(props, SETTING_SELECTED_PLAYER, obs_module_text("Selected player"), OBS_COMBO_TYPE_EDITABLE, OBS_COMBO_FORMAT_STRING);
+    obs_property_list_add_string(p, "None", SETTING_NO_SELECTED_PLAYER);
     int nb_players;
     TrackInfoPlayer** players = track_info_get_players(&nb_players);
     if (players != NULL) {
         for (int i = 0; i < nb_players; i++) {
-            obs_property_list_add_string(player_list, players[i]->fancy_name, players[i]->fancy_name);
+            if (strstr(players[i]->fancy_name, "instance") != NULL) continue; // don't include instances of player. Their id is random
+            obs_property_list_add_string(p, players[i]->fancy_name, players[i]->fancy_name);
         }
         free(players);
     }
+
+    p = obs_properties_add_bool(props, SETTING_FALLBACK_SELECTED_PLAYER, obs_module_text("Fallback if selected player not running"));
     return props;
 }
 
@@ -168,8 +201,8 @@ static struct obs_source_info obs_media_info = {
     .get_name = obsmed_get_name,
     .get_width = obsmed_get_width,
     .get_height = obsmed_get_height,
-    /*.update = obsmed_update,
-    .get_defaults = obsmed_get_defaults,*/
+    .update = obsmed_update,
+    .get_defaults = obsmed_get_defaults,
     .get_properties = obsmed_get_properties,
     .icon_type = OBS_ICON_TYPE_CUSTOM,
 };

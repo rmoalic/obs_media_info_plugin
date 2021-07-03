@@ -22,6 +22,7 @@ static int players_name_cmp(TrackInfoPerPlayer* a, TrackInfoPerPlayer* b) {
 void track_info_init() {
     list_init(&players);
 }
+
 TrackInfo* track_info_get_best_cantidate() {
     struct list_element* curr = players;
     TrackInfo* best_candidate = NULL;
@@ -35,6 +36,30 @@ TrackInfo* track_info_get_best_cantidate() {
             } else {
                 if (best_candidate->update_time < e->track.update_time) {
                     best_candidate = &(e->track);
+                }
+            }
+        }
+        curr = curr->next;
+    }
+    return best_candidate;
+}
+
+TrackInfo* track_info_get_from_selected_player_fancy_name(const char* player_fancy_name) {
+    struct list_element* curr = players;
+    TrackInfo* best_candidate = NULL;
+    int player_name_len = strlen(player_fancy_name);
+
+    while (curr != NULL) {
+        TrackInfoPerPlayer* e = curr->element;
+        // check for player instances ex: org.mpris.MediaPlayer2.vlc.instance372027
+        if (strncmp(e->player.fancy_name, player_fancy_name, player_name_len) == 0) {
+            if (e->playing) {
+                if (best_candidate == NULL) {
+                    best_candidate = &(e->track);
+                } else {
+                    if (best_candidate->update_time < e->track.update_time) {
+                        best_candidate = &(e->track);
+                    }
                 }
             }
         }

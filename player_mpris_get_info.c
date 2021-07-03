@@ -251,16 +251,13 @@ static DBusHandlerResult my_message_handler_dbus(DBusConnection *connection, DBu
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
     bool registering_name = old_name != NULL && strlen(old_name) == 0;
-    if (registering_name) {
-        printf("registration of %s as %s\n", new_name, name);
-    } else {
-        printf("unregistering of %s as %s\n", old_name, name);
-    }
 
     if (strncmp(MPRIS_NAME_START, name, sizeof(MPRIS_NAME_START) - 1) == 0) { // if mpris name
         if (registering_name) {
+            printf("registration of %s as %s\n", new_name, name);
             track_info_register_player(new_name, name);
         } else {
+            printf("unregistering of %s as %s\n", old_name, name);
             track_info_unregister_player(old_name);
         }
     }

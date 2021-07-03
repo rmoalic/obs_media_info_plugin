@@ -86,7 +86,7 @@ void list_remove(list *l, void* element_to_delete, int (*element_cmp)(void*, voi
                  curr = pre->next;
             }
 
-            free(to_delete->element);
+            //free(to_delete->element);
             free(to_delete);
         } else {
             pre = curr;
