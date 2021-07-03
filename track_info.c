@@ -94,21 +94,30 @@ static void track_info_dup(TrackInfo t, TrackInfo* ret) {
     ret->update_time = t.update_time;
 }
 
-void track_info_free(TrackInfo* ti) {
+void track_info_struct_free(TrackInfo* ti) {
     efree(ti->artist);
     efree(ti->album);
     efree(ti->title);
     efree(ti->album_art_url);
 }
 
+void track_info_struct_init(TrackInfo* ti) {
+    ti->artist = NULL;
+    ti->album = NULL;
+    ti->title = NULL;
+    ti->album_art_url = NULL;
+    ti->update_time = 0;
+}
+
 void track_info_register_player(const char* name, const char* fancy_name){
-    TrackInfoPerPlayer* track_info = malloc(sizeof(TrackInfoPerPlayer));
-    allocfail_return(track_info);
-    track_info->player.name = strdup(name);
-    allocfail_return(track_info->player.name);
-    track_info->player.fancy_name = strdup(fancy_name);
-    allocfail_return(track_info->player.fancy_name);
-    list_prepend(&players, track_info, sizeof(TrackInfoPerPlayer));
+    TrackInfoPerPlayer* track_info_per_player = malloc(sizeof(TrackInfoPerPlayer));
+    allocfail_return(track_info_per_player);
+    track_info_per_player->player.name = strdup(name);
+    allocfail_return(track_info_per_player->player.name);
+    track_info_per_player->player.fancy_name = strdup(fancy_name);
+    allocfail_return(track_info_per_player->player.fancy_name);
+    track_info_struct_init(&(track_info_per_player->track));
+    list_prepend(&players, track_info_per_player, sizeof(TrackInfoPerPlayer));
 }
 
 void track_info_unregister_player(const char* name) {

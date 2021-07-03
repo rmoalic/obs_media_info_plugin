@@ -18,7 +18,8 @@ typedef struct track_info {
 } TrackInfo;
 
 void track_info_init(void);
-void track_info_free(TrackInfo* ti);
+void track_info_struct_free(TrackInfo* ti);
+void track_info_struct_init(TrackInfo* ti);
 void track_info_print(TrackInfo ti);
 void track_info_register_track_change(const char* player, TrackInfo track);
 void track_info_register_state_change(const char* player, bool playing);
