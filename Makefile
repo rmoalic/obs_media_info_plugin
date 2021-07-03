@@ -12,6 +12,9 @@ lib: obs_media_info.so
 obs_media_info.so: obs_media_info.o player_mpris_get_info.o track_info.o list.o
 	$(CC) `pkgconf --libs dbus-1 libobs` -shared $^ -o $@
 
+obs_media_info.o: obs_media_info.c
+	$(CC) $(CFLAGS) -c -fPIC `pkgconf --cflags libobs` $< -o $@
+
 player_mpris_get_info.o: player_mpris_get_info.c
 	$(CC) $(CFLAGS) -c -fPIC `pkgconf --cflags dbus-1` $< -o $@
 
