@@ -11,6 +11,7 @@ typedef struct track_info_per_player {
     TrackInfoPlayer player;
     TrackInfo track;
     bool playing;
+    bool updated_once;
 } TrackInfoPerPlayer;
 
 static list players;
@@ -30,7 +31,7 @@ TrackInfo* track_info_get_best_cantidate() {
     while (curr != NULL) {
         TrackInfoPerPlayer* e = curr->element;
 
-        if (e->playing) {
+        if (e->updated_once && e->playing) {
             if (best_candidate == NULL) {
                 best_candidate = &(e->track);
             } else {
@@ -53,7 +54,7 @@ TrackInfo* track_info_get_from_selected_player_fancy_name(const char* player_fan
         TrackInfoPerPlayer* e = curr->element;
         // check for player instances ex: org.mpris.MediaPlayer2.vlc.instance372027
         if (strncmp(e->player.fancy_name, player_fancy_name, player_name_len) == 0) {
-            if (e->playing) {
+            if (e->updated_once &&  e->playing) {
                 if (best_candidate == NULL) {
                     best_candidate = &(e->track);
                 } else {
@@ -117,6 +118,7 @@ void track_info_register_player(const char* name, const char* fancy_name){
     track_info_per_player->player.fancy_name = strdup(fancy_name);
     allocfail_return(track_info_per_player->player.fancy_name);
     track_info_struct_init(&(track_info_per_player->track));
+    track_info_per_player->updated_once = false;
     list_prepend(&players, track_info_per_player, sizeof(TrackInfoPerPlayer));
 }
 
@@ -140,6 +142,7 @@ void track_info_register_track_change(const char* name, TrackInfo track) {
     TrackInfoPerPlayer* track_info = track_info_get_for_player(name);
     if (track_info == NULL) return;
 
+    track_info->updated_once = true;
     track_info_dup(track, &(track_info->track));
 }
 
@@ -156,7 +159,7 @@ void track_info_print_players() {
     int i = 0;
     while (curr != NULL) {
         TrackInfoPerPlayer* e = curr->element;
-        printf("Player %d: %s (%s)\n", i, e->player.name, e->player.fancy_name);
+        printf("Player %d: %s (%s) updated_once: %d\n", i, e->player.name, e->player.fancy_name, e->updated_once);
         printf("> ");
         track_info_print(e->track);
         printf("playing: %d\n\n", e->playing);
