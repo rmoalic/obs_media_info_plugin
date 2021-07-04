@@ -51,6 +51,11 @@ static void update_obs_text_source(char* source_name, char* new_text) {
     obs_source_release(text_source);
 }
 
+static int strlen0(char* str) {
+    if (str == NULL) return 0;
+    return strlen(str);
+}
+
 static void apply_template(char* template, TrackInfo* track_info, char* ret, int nb_max) {
     char tmp[200];
     char* token;
@@ -65,23 +70,23 @@ static void apply_template(char* template, TrackInfo* track_info, char* ret, int
     token = strtok(tmp, sep);
     while (token != NULL) {
         if (strcmp(token, "title") == 0) {
-            tlen = strlen(track_info->title);
+            tlen = strlen0(track_info->title);
             if (nb_max - tlen <= 0) return;
             strncat(ret, track_info->title, tlen);
         } else if (strcmp(token, "artist") == 0) {
-            tlen = strlen(track_info->artist);
+            tlen = strlen0(track_info->artist);
             if (nb_max - tlen <= 0) return;
             strncat(ret, track_info->artist, tlen);
         } else if (strcmp(token, "album") == 0) {
-            tlen = strlen(track_info->album);
+            tlen = strlen0(track_info->album);
             if (nb_max - tlen <= 0) return;
             strncat(ret, track_info->album, tlen);
         } else if (strcmp(token, "album_art_url") == 0) {
-            tlen = strlen(track_info->album_art_url);
+            tlen = strlen0(track_info->album_art_url);
             if (nb_max - tlen <= 0) return;
             strncat(ret, track_info->album_art_url, tlen);
         } else {
-            tlen = strlen(token);
+            tlen = strlen0(token);
             if (nb_max - tlen <= 0) return;
             strncat(ret, token, tlen);
         }
@@ -249,6 +254,7 @@ static obs_properties_t* obsmed_get_properties(void *data)
     obs_properties_add_bool(props, SETTING_FALLBACK_SELECTED_PLAYER, obs_module_text("Fallback if selected player not running"));
 
     p = obs_properties_add_list(props, SETTING_TEXT_FIELD, obs_module_text("Text source name"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+    obs_property_list_add_string(p, "", "");
     obs_enum_sources(add_sources_from_text_plugins, p);
 
     obs_properties_add_text(props, SETTING_TEMPLATE, obs_module_text("Text template"), OBS_TEXT_MULTILINE);
