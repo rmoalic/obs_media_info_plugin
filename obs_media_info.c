@@ -14,6 +14,10 @@
 #define SETTING_SELECTED_PLAYER "SELECTED_PLAYER"
 #define SETTING_NO_SELECTED_PLAYER "None"
 #define SETTING_FALLBACK_SELECTED_PLAYER "FALLBACK_SELECTED_PLAYER"
+#define SETTING_TEMPLATE "TEXT_TEMPLATE"
+#define SETTING_TEMPLATE_DEFAULT "\"%title%\" - %artist%\n\
+from %album%"
+
 
 typedef struct source {
     bool live;
@@ -25,6 +29,7 @@ typedef struct source {
     gs_texture_t* texture;
     const char* selected_player;
     bool fallback_if_selected_player_not_running;
+    const char* template;
 } obsmed_source;
 
 static const char* obsmed_get_name(void* type_data) {
@@ -40,6 +45,50 @@ static void update_obs_text_source(char* source_name, char* new_text) {
 
     obs_data_release(tdata);
     obs_source_release(text_source);
+}
+
+static void apply_template(char* template, TrackInfo* track_info, char* ret, int nb_max) {
+    char tmp[200];
+    char* token;
+    int nb_token = 0;
+    const char sep[] = "%";
+    ret[0] = '\0';
+
+    strncpy(tmp, template, 199);
+    tmp[199] = '\0';
+
+    int tlen;
+    token = strtok(tmp, sep);
+    while (token != NULL) {
+        if (strcmp(token, "title") == 0) {
+            tlen = strlen(track_info->title);
+            if (nb_max - tlen <= 0) return;
+            strncat(ret, track_info->title, tlen);
+        } else if (strcmp(token, "artist") == 0) {
+            tlen = strlen(track_info->artist);
+            if (nb_max - tlen <= 0) return;
+            strncat(ret, track_info->artist, tlen);
+        } else if (strcmp(token, "album") == 0) {
+            tlen = strlen(track_info->album);
+            if (nb_max - tlen <= 0) return;
+            strncat(ret, track_info->album, tlen);
+        } else if (strcmp(token, "album_art_url") == 0) {
+            tlen = strlen(track_info->album_art_url);
+            if (nb_max - tlen <= 0) return;
+            strncat(ret, track_info->album_art_url, tlen);
+        } else {
+            tlen = strlen(token);
+            if (nb_max - tlen <= 0) return;
+            strncat(ret, token, tlen);
+        }
+        nb_max -= tlen - 1;
+        token = strtok(NULL, sep);
+        nb_token = nb_token + 1;
+    }
+
+    if ((nb_token) % 2 != 0) {
+        printf("Malformed template\n");
+    }
 }
 
 static void* update_func(void* arg) {
@@ -94,7 +143,8 @@ static void* update_func(void* arg) {
             }
 
             char text[200];
-            snprintf(text, 199, "%s\n%s\n%s", current_track->title, current_track->album, current_track->artist);
+            printf("ICI\n");
+            apply_template((char*)source->template, current_track, text, 199);
             update_obs_text_source("toto", text);
         }
         os_sleep_ms(500);
@@ -112,6 +162,8 @@ static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     data->texture = NULL;
     data->selected_player = obs_data_get_string(settings, SETTING_SELECTED_PLAYER);
     data->fallback_if_selected_player_not_running = obs_data_get_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER);
+    data->template = obs_data_get_string(settings, SETTING_TEMPLATE);
+    printf("LA: %s\n", data->template);
 
     data->end_update_thread = false;
     data->texture_mutex = bmalloc(sizeof(pthread_mutex_t));
@@ -151,11 +203,13 @@ static void obsmed_update(void *data, obs_data_t *settings) {
 
     d->selected_player = obs_data_get_string(settings, SETTING_SELECTED_PLAYER);
     d->fallback_if_selected_player_not_running = obs_data_get_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER);
+    d->template = obs_data_get_string(settings, SETTING_TEMPLATE);
 }
 static void obsmed_get_defaults(obs_data_t *settings)
 {
     obs_data_set_default_string(settings, SETTING_SELECTED_PLAYER, SETTING_NO_SELECTED_PLAYER);
     obs_data_set_default_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER, false);
+    obs_data_set_default_string(settings, SETTING_TEMPLATE, SETTING_TEMPLATE_DEFAULT);
 }
 
 
@@ -176,7 +230,8 @@ static obs_properties_t* obsmed_get_properties(void *data)
         free(players);
     }
 
-    p = obs_properties_add_bool(props, SETTING_FALLBACK_SELECTED_PLAYER, obs_module_text("Fallback if selected player not running"));
+    obs_properties_add_bool(props, SETTING_FALLBACK_SELECTED_PLAYER, obs_module_text("Fallback if selected player not running"));
+    obs_properties_add_text(props, SETTING_TEMPLATE, obs_module_text("Text template"), OBS_TEXT_MULTILINE);
     return props;
 }
 
