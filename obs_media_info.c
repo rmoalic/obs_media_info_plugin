@@ -17,6 +17,7 @@
 #define SETTING_TEMPLATE "TEXT_TEMPLATE"
 #define SETTING_TEMPLATE_DEFAULT "\"%title%\" - %artist%\n\
 from %album%"
+#define SETTING_TEXT_FIELD "TEXT_FIELD"
 
 
 typedef struct source {
@@ -30,6 +31,7 @@ typedef struct source {
     const char* selected_player;
     bool fallback_if_selected_player_not_running;
     const char* template;
+    const char* text_field;
 } obsmed_source;
 
 static const char* obsmed_get_name(void* type_data) {
@@ -38,7 +40,9 @@ static const char* obsmed_get_name(void* type_data) {
 
 static void update_obs_text_source(char* source_name, char* new_text) {
     obs_source_t* text_source = obs_get_source_by_name(source_name);
+    if (text_source == NULL) return;
     obs_data_t* tdata = obs_data_create();
+    if (tdata == NULL) return;
 
     obs_data_set_string(tdata, "text", new_text);
     obs_source_update(text_source, tdata);
@@ -145,7 +149,7 @@ static void* update_func(void* arg) {
             char text[200];
             printf("ICI\n");
             apply_template((char*)source->template, current_track, text, 199);
-            update_obs_text_source("toto", text);
+            update_obs_text_source((char*)source->text_field, text);
         }
         os_sleep_ms(500);
     }
@@ -163,7 +167,7 @@ static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     data->selected_player = obs_data_get_string(settings, SETTING_SELECTED_PLAYER);
     data->fallback_if_selected_player_not_running = obs_data_get_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER);
     data->template = obs_data_get_string(settings, SETTING_TEMPLATE);
-    printf("LA: %s\n", data->template);
+    data->text_field = obs_data_get_string(settings, SETTING_TEXT_FIELD);
 
     data->end_update_thread = false;
     data->texture_mutex = bmalloc(sizeof(pthread_mutex_t));
@@ -204,14 +208,26 @@ static void obsmed_update(void *data, obs_data_t *settings) {
     d->selected_player = obs_data_get_string(settings, SETTING_SELECTED_PLAYER);
     d->fallback_if_selected_player_not_running = obs_data_get_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER);
     d->template = obs_data_get_string(settings, SETTING_TEMPLATE);
+    d->text_field = obs_data_get_string(settings, SETTING_TEXT_FIELD);
 }
 static void obsmed_get_defaults(obs_data_t *settings)
 {
     obs_data_set_default_string(settings, SETTING_SELECTED_PLAYER, SETTING_NO_SELECTED_PLAYER);
     obs_data_set_default_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER, false);
     obs_data_set_default_string(settings, SETTING_TEMPLATE, SETTING_TEMPLATE_DEFAULT);
+    obs_data_set_default_string(settings, SETTING_TEXT_FIELD, "");
 }
 
+static bool add_sources_from_text_plugins(void* param, obs_source_t* source) {
+    obs_property_t* p = param;
+    const char* id = obs_source_get_id(source);
+
+    if (strstr(id, "text") != NULL) {
+        const char* name = obs_source_get_name(source);
+        obs_property_list_add_string(p, name, name);
+    }
+    return true;
+}
 
 static obs_properties_t* obsmed_get_properties(void *data)
 {
@@ -231,6 +247,10 @@ static obs_properties_t* obsmed_get_properties(void *data)
     }
 
     obs_properties_add_bool(props, SETTING_FALLBACK_SELECTED_PLAYER, obs_module_text("Fallback if selected player not running"));
+
+    p = obs_properties_add_list(props, SETTING_TEXT_FIELD, obs_module_text("Text source name"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+    obs_enum_sources(add_sources_from_text_plugins, p);
+
     obs_properties_add_text(props, SETTING_TEMPLATE, obs_module_text("Text template"), OBS_TEXT_MULTILINE);
     return props;
 }
