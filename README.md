@@ -1,7 +1,5 @@
 # obs_media_info
 
-> **WARNING** WIP
-
 > **WARNING** This project only works on linux
 
 This project is an attempt at making a [OBS Studio](https://obsproject.com/) plugin.
@@ -41,9 +39,9 @@ $ cp obs_media_plugin.so /usr/share/obs/obs-plugins/
 
 ## TODO
 
-[] Handle different artwork ratio (ex: Youtube videos)
-[] Handle missing artwork (or partial info in general)
-[] Select prefered player
+- [ ] Handle different artwork ratio (ex: Youtube videos)
+- [ ] Handle missing artwork (or partial info in general)
+- [ ] Not relying on ffmpeg to download images files
 
 ## Note
 
