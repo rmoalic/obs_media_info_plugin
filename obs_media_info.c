@@ -11,6 +11,8 @@
 #include "track_info.h"
 #include "utils.h"
 #include "list.h"
+#define LOG_PREFIX "[obs_media_info] "
+#include "logging.h"
 
 #define SETTING_SELECTED_PLAYER "SELECTED_PLAYER"
 #define SETTING_NO_SELECTED_PLAYER "None"
@@ -108,7 +110,7 @@ static void apply_template(char* template, TrackInfo* track_info, char* ret, int
     }
 
     if ((nb_token) % 2 != 0) {
-        printf("Malformed template\n");
+        log_warning("Malformed template\n");
     }
 }
 
@@ -123,6 +125,7 @@ static void* update_func(void* arg) {
         struct list_element* curr = *sources_lst;
         while (curr != NULL) {
             obsmed_source* source = curr->element;
+            log_debug("current source: %p", (void*) source);
 
             TrackInfo* current_track = NULL;
             if (strcmp(SETTING_NO_SELECTED_PLAYER, source->selected_player) == 0) {
@@ -136,16 +139,19 @@ static void* update_func(void* arg) {
             }
 
             if (current_track != source->last_track) {
+                log_debug("track changed: %p != %p\n", (void*) current_track, (void*) source->last_track);
                 source->last_track = current_track;
                 source->changed = true;
             }
 
             if (current_track != NULL && current_track->update_time > source->last_update_time) {
+                log_debug("track changed: update time\n");
                 source->changed = true;
                 source->last_update_time = current_track->update_time;
             }
 
             if (source->changed && current_track != NULL) {
+                log_debug("track changed: %p\n", (void*) current_track);
                 if (current_track->album_art_url != NULL &&
                     (source->last_track_url == NULL ||
                      strcmp(source->last_track_url, current_track->album_art_url) != 0)
@@ -155,7 +161,7 @@ static void* update_func(void* arg) {
                     if (source->texture != NULL) gs_texture_destroy(source->texture);
                     //TODO: syncronise texture and text updating
                     source->texture = gs_texture_create_from_file(current_track->album_art_url); //TODO: texture from http only works with obs's ffmpeg backend not with imageMagic.
-                    if (source->texture == NULL) puts("error loading texture");
+                    if (source->texture == NULL) log_warning("error loading texture\n");
                     obs_leave_graphics();
                     pthread_mutex_unlock(source->texture_mutex);
 
@@ -202,8 +208,9 @@ static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
 
 
     if (list_size(sources) == 0) { // is first source
+        log_info("starting update thread\n");
         if(pthread_create(&update_thread, NULL, update_func, &sources)) {
-            fprintf(stderr, "Error creating thread\n");
+            log_error("Error creating thread\n");
             return NULL;
         }
     }
@@ -227,6 +234,7 @@ static void obsmed_destroy(void* d) {
     list_remove(&sources, data, sources_cmp);
     pthread_mutex_unlock(sources_mutex);
     if (list_size(sources) == 0) {
+        log_info("stopping update thread\n");
         end_update_thread = true;
         pthread_join(update_thread, NULL);
     }
@@ -257,6 +265,7 @@ static void obsmed_update(void *data, obs_data_t *settings) {
     d->template = obs_data_get_string(settings, SETTING_TEMPLATE);
     d->text_field = obs_data_get_string(settings, SETTING_TEXT_FIELD);
 
+    log_debug("track changed: plugin settings update\n");
     d->changed = true;
 }
 static void obsmed_get_defaults(obs_data_t *settings)
@@ -344,6 +353,7 @@ MODULE_EXPORT const char *obs_module_description(void)
 bool obs_module_load(void)
 {
     obs_register_source(&obs_media_info);
+    log_info("loading\n");
     list_init(&sources);
 
     sources_mutex = bmalloc(sizeof(pthread_mutex_t));

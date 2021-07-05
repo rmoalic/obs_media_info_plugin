@@ -6,6 +6,8 @@
 #include "track_info.h"
 #include "list.h"
 #include "utils.h"
+#define LOG_PREFIX "[obs_media_info] "
+#include "logging.h"
 
 typedef struct track_info_per_player {
     TrackInfoPlayer player;
@@ -131,9 +133,9 @@ static TrackInfoPerPlayer* track_info_get_for_player(const char* name) {
     TrackInfoPerPlayer* track_info = NULL;
     TrackInfoPerPlayer h = {.player.name = name};
     if (list_search(&players, &h, (list_cmpfunc) players_name_cmp, (void**) &track_info)) {
-        printf("Found already registered player %s (%s)\n", name, track_info->player.fancy_name);
+        log_debug("Found already registered player %s (%s)\n", name, track_info->player.fancy_name);
     } else {
-        printf("Unknown player %s\n", name);
+        log_warning("Unknown player %s\n", name);
     }
     return track_info;
 }

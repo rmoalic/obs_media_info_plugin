@@ -10,6 +10,8 @@
 #include "player_mpris_get_info.h"
 #include "track_info.h"
 #include "utils.h"
+#define LOG_PREFIX "[obs_media_info] "
+#include "logging.h"
 
 #define NB_PLAYER_MAX 10
 static const char MPRIS_NAME_START[] = "org.mpris.MediaPlayer2";
@@ -88,7 +90,7 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret) {
         } break;
         case DBUS_TYPE_VARIANT: {
             if (property_name == NULL) {
-                printf("Error: Encontered property before its name, ignoring\n");
+                log_error("Error: Encontered property before its name, ignoring\n");
                 continue;
             }
             if (strcmp(property_name, "xesam:title") == 0) {
@@ -123,11 +125,11 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret) {
                     *updated_data_ret = true;
                 }
             } else {
-                printf("ignored: %s\n", property_name);
+                log_debug("ignored: %s\n", property_name);
             }
         } break;
         default:
-            fprintf(stderr, "parse error 2\n");
+            log_error("parse error\n");
         }
         dbus_message_iter_next(iter);
     }
@@ -148,18 +150,18 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret) {
         } break;
         case DBUS_TYPE_STRING: {
             dbus_message_iter_get_basic(iter, &property_name);
-            printf("%s\n", property_name);
+            log_debug("%s\n", property_name);
         } break;
         case DBUS_TYPE_VARIANT: {
             if (property_name == NULL) {
-                printf("Error: Encontered property before its name, ignoring\n");
+                log_error("Error: Encontered property before its name, ignoring\n");
                 continue;
             }
             if (strcmp(property_name, "PlaybackStatus") == 0) {
                 char* status;
                 dbus_message_iter_recurse(iter, &sub);
                 dbus_message_iter_get_basic(&sub, &status);
-                printf("Status: %s\n", status);
+                log_debug("Status: %s\n", status);
                 if (strcmp(status, "Playing") == 0) {
                     playing = true;
                 } else {
@@ -170,11 +172,11 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret) {
                 dbus_message_iter_recurse(&sub, &subsub);
                 parse_MetaData(&subsub, updated_data_ret);
             } else {
-                fprintf(stderr, "not handled %s\n", property_name);
+                log_debug("not handled %s\n", property_name);
             }
         } break;
         default:
-            fprintf(stderr, "parse error 2\n");
+            log_error("parse error\n");
         }
         dbus_message_iter_next(iter);
     }
@@ -191,7 +193,7 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
 
     const char* property_name;
     const char* player = dbus_message_get_sender(message);
-    printf("\n\nreceived message from %s\n", player);
+    log_debug("\n\nreceived message from %s\n", player);
 
 
     dbus_message_iter_init (message, &iter);
@@ -200,7 +202,7 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
         switch (current_type) {
         case DBUS_TYPE_STRING: {
             dbus_message_iter_get_basic(&iter, &property_name);
-            printf("%s\n", property_name);
+            log_debug("%s\n", property_name);
         } break;
         case DBUS_TYPE_ARRAY: {
             if (strcmp(property_name, "org.mpris.MediaPlayer2.Player") == 0) {
@@ -213,7 +215,7 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
             }
         } break;
         default:
-            fprintf(stderr, "parse error\n");
+            log_error("parse error\n");
         }
         dbus_message_iter_next(&iter);
     }
@@ -227,7 +229,9 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
         track_info_register_state_change(player, playing);
     }
 
+    #ifdef DEBUG
     track_info_print_players();
+    #endif
 
     return DBUS_HANDLER_RESULT_HANDLED;
 }
@@ -245,7 +249,7 @@ static DBusHandlerResult my_message_handler_dbus(DBusConnection *connection, DBu
                                DBUS_TYPE_STRING, &new_name,
                                DBUS_TYPE_INVALID)) {
         if (dbus_error_is_set(&error)) {
-            fprintf(stderr, "Error while reading new names signal (%s)\n", error.message);
+            log_error("Error while reading new names signal (%s)\n", error.message);
             dbus_error_free(&error);
         }
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
@@ -254,10 +258,10 @@ static DBusHandlerResult my_message_handler_dbus(DBusConnection *connection, DBu
 
     if (strncmp(MPRIS_NAME_START, name, sizeof(MPRIS_NAME_START) - 1) == 0) { // if mpris name
         if (registering_name) {
-            printf("registration of %s as %s\n", new_name, name);
+            log_info("registration of %s as %s\n", new_name, name);
             track_info_register_player(new_name, name);
         } else {
-            printf("unregistering of %s as %s\n", old_name, name);
+            log_info("unregistering of %s as %s\n", old_name, name);
             track_info_unregister_player(old_name);
         }
     }
@@ -270,7 +274,7 @@ static DBusHandlerResult my_message_handler(DBusConnection *connection, DBusMess
     const char* dest = dbus_message_get_destination(message);
     const char* my_name = dbus_bus_get_unique_name(connection);
     if (dest != NULL && strcmp(dest, my_name) != 0) {
-        printf("Received a message for %s I am %s, ignoring\n", dest, my_name);
+        log_warning("Received a message for %s I am %s, ignoring\n", dest, my_name);
         return ret;
     }
 
@@ -283,7 +287,7 @@ static DBusHandlerResult my_message_handler(DBusConnection *connection, DBusMess
     } else if (strcmp(path, "/org/freedesktop/DBus") == 0 && strcmp(member, "NameOwnerChanged") == 0) {
         ret = my_message_handler_dbus(connection, message, user_data);
     } else {
-        printf("UNHANDLED: message with path %s and member %s\n", path, member);
+        log_warning("NOT HANDLED: message with path %s and member %s\n", path, member);
         ret = DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
 
@@ -302,7 +306,7 @@ static char* mydbus_get_name_owner(DBusConnection* dbus, const char* name) {
 
     resp = dbus_connection_send_with_reply_and_block(dbus, msg, -1, &error); //TODO: remove blocking call
     if (dbus_error_is_set(&error)) {
-        fprintf(stderr, "Error while reading owner name (%s)\n", error.message);
+        log_error("Error while reading owner name (%s)\n", error.message);
     } else {
         char* resp_name;
 
@@ -310,7 +314,7 @@ static char* mydbus_get_name_owner(DBusConnection* dbus, const char* name) {
                                     DBUS_TYPE_STRING, &resp_name,
                                     DBUS_TYPE_INVALID)) {
             if (dbus_error_is_set(&error)) {
-                fprintf(stderr, "Error while reading owner name (%s)\n", error.message);
+                log_error("Error while reading owner name (%s)\n", error.message);
             }
         } else {
             ret = strdup(resp_name);
@@ -330,7 +334,7 @@ static void mydbus_register_names(DBusConnection* dbus)
     msg = dbus_message_new_method_call("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "ListNames");
 
     if (! dbus_connection_send_with_reply(dbus, msg, &resp_pending, -1)) {
-        fprintf(stderr, "Out Of Memory!\n");
+        log_error("Out Of Memory!\n");
     }
 
     dbus_pending_call_block(resp_pending); //TODO: remove blocking call
@@ -371,11 +375,11 @@ static DBusConnection* mydbus_init_session()
     dbus_error_init(&error);
     cbus = dbus_bus_get(DBUS_BUS_SESSION, &error);
     if (dbus_error_is_set(&error)) {
-        fprintf(stderr, "Error getting Bus: %s\n", error.message);
+        log_error("Error getting Bus: %s\n", error.message);
         dbus_error_free(&error);
     }
     if (cbus == NULL) {
-        fprintf(stderr, "Error getting Bus: cbus is null\n");
+        log_error("Error getting Bus: cbus is null\n");
     }
 
     /*dbus_bus_request_name(cbus, "fr.polms.obs_get_mpris_info", DBUS_NAME_FLAG_REPLACE_EXISTING, &error);
@@ -383,7 +387,7 @@ static DBusConnection* mydbus_init_session()
         fprintf(stderr, "Error while claiming name (%s)\n", error.message);
         dbus_error_free(&error);
         }*/
-    printf("My dbus name is %s\n", dbus_bus_get_unique_name(cbus));
+    log_info("My dbus name is %s\n", dbus_bus_get_unique_name(cbus));
 
     return cbus;
 }
@@ -394,14 +398,14 @@ static void mydbus_add_matches(DBusConnection* dbus) {
     dbus_bus_add_match(dbus, "type='signal', interface='org.freedesktop.DBus.Properties',member='PropertiesChanged', path='/org/mpris/MediaPlayer2'", &error);
 
     if (dbus_error_is_set(&error)) {
-        fprintf(stderr, "Error while adding match (%s)\n", error.message);
+        log_error("Error while adding match (%s)\n", error.message);
         dbus_error_free(&error);
     }
 
     dbus_bus_add_match(dbus, "type='signal', interface='org.freedesktop.DBus', member='NameOwnerChanged', path='/org/freedesktop/DBus'", &error);
 
     if (dbus_error_is_set(&error)) {
-        fprintf(stderr, "Error while adding match (%s)\n", error.message);
+        log_error("Error while adding match (%s)\n", error.message);
         dbus_error_free(&error);
     }
 
@@ -411,6 +415,7 @@ static void mydbus_add_matches(DBusConnection* dbus) {
 
 
 void mpris_init() {
+    log_info("Initialising");
     dbus_connection = mydbus_init_session();
 
     mydbus_add_matches(dbus_connection);
