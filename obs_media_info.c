@@ -10,6 +10,7 @@
 #include "player_mpris_get_info.h"
 #include "track_info.h"
 #include "utils.h"
+#include "list.h"
 
 #define SETTING_SELECTED_PLAYER "SELECTED_PLAYER"
 #define SETTING_NO_SELECTED_PLAYER "None"
@@ -19,20 +20,32 @@
 from %album%"
 #define SETTING_TEXT_FIELD "TEXT_FIELD"
 
-
 typedef struct source {
     bool live;
     uint32_t width;
     uint32_t height;
-    pthread_t update_thread;
-    bool end_update_thread;
     pthread_mutex_t* texture_mutex;
     gs_texture_t* texture;
+
+    //config
     const char* selected_player;
     bool fallback_if_selected_player_not_running;
     const char* template;
     const char* text_field;
+
+    // thread
+    char* last_track_url;
+    time_t last_update_time;
+    TrackInfo* last_track;
+    bool changed;
 } obsmed_source;
+
+
+static list sources;
+static pthread_mutex_t* sources_mutex;
+
+static pthread_t update_thread;
+static bool end_update_thread = false;
 
 static const char* obsmed_get_name(void* type_data) {
     return "Media infos";
@@ -102,94 +115,123 @@ static void apply_template(char* template, TrackInfo* track_info, char* ret, int
 
 static void* update_func(void* arg) {
     mpris_init();
-    obsmed_source* source = arg;
-    char* last_track_url = NULL;
-    time_t last_update_time = time(NULL);
-    TrackInfo* last_track = NULL;
-    bool changed = false;
+    list* sources_lst = arg;
 
-    while (! source->end_update_thread) {
+    while (! end_update_thread) {
         mpris_process(); // Get new data
 
-        TrackInfo* current_track = NULL;
-        if (strcmp(SETTING_NO_SELECTED_PLAYER, source->selected_player) == 0) {
-            current_track = track_info_get_best_cantidate();
-        } else {
-            assert(source->selected_player != NULL);
-            current_track = track_info_get_from_selected_player_fancy_name(source->selected_player);
-            if (current_track == NULL && source->fallback_if_selected_player_not_running) {
+        pthread_mutex_lock(sources_mutex);
+        struct list_element* curr = *sources_lst;
+        while (curr != NULL) {
+            obsmed_source* source = curr->element;
+
+            TrackInfo* current_track = NULL;
+            if (strcmp(SETTING_NO_SELECTED_PLAYER, source->selected_player) == 0) {
                 current_track = track_info_get_best_cantidate();
-            }
-        }
-
-        if (current_track != last_track) {
-            last_track = current_track;
-            changed = true;
-        }
-
-        if (current_track != NULL && current_track->update_time > last_update_time) {
-            changed = true;
-            last_update_time = current_track->update_time;
-        }
-
-        if (changed && current_track != NULL) {
-            if (current_track->album_art_url != NULL &&
-                    (last_track_url == NULL ||
-                     strcmp(last_track_url, current_track->album_art_url) != 0)
-               ) {
-                pthread_mutex_lock(source->texture_mutex);
-                obs_enter_graphics();
-                if (source->texture != NULL) gs_texture_destroy(source->texture);
-                //TODO: syncronise texture and text updating
-                source->texture = gs_texture_create_from_file(current_track->album_art_url); //TODO: texture from http only works with obs's ffmpeg backend not with imageMagic.
-                if (source->texture == NULL) puts("error loading texture");
-                obs_leave_graphics();
-                pthread_mutex_unlock(source->texture_mutex);
-
-                if (last_track_url != NULL) free(last_track_url);
-                last_track_url = strdup(current_track->album_art_url);
-                allocfail_print(last_track_url);
+            } else {
+                assert(source->selected_player != NULL);
+                current_track = track_info_get_from_selected_player_fancy_name(source->selected_player);
+                if (current_track == NULL && source->fallback_if_selected_player_not_running) {
+                    current_track = track_info_get_best_cantidate();
+                }
             }
 
-            char text[200];
-            printf("ICI\n");
-            apply_template((char*)source->template, current_track, text, 199);
-            update_obs_text_source((char*)source->text_field, text);
+            if (current_track != source->last_track) {
+                source->last_track = current_track;
+                source->changed = true;
+            }
+
+            if (current_track != NULL && current_track->update_time > source->last_update_time) {
+                source->changed = true;
+                source->last_update_time = current_track->update_time;
+            }
+
+            if (source->changed && current_track != NULL) {
+                if (current_track->album_art_url != NULL &&
+                    (source->last_track_url == NULL ||
+                     strcmp(source->last_track_url, current_track->album_art_url) != 0)
+                   ) {
+                    pthread_mutex_lock(source->texture_mutex);
+                    obs_enter_graphics();
+                    if (source->texture != NULL) gs_texture_destroy(source->texture);
+                    //TODO: syncronise texture and text updating
+                    source->texture = gs_texture_create_from_file(current_track->album_art_url); //TODO: texture from http only works with obs's ffmpeg backend not with imageMagic.
+                    if (source->texture == NULL) puts("error loading texture");
+                    obs_leave_graphics();
+                    pthread_mutex_unlock(source->texture_mutex);
+
+                    if (source->last_track_url != NULL) free(source->last_track_url);
+                    source->last_track_url = strdup(current_track->album_art_url);
+                    allocfail_print(source->last_track_url);
+                }
+
+                char text[200];
+                printf("ICI\n");
+                apply_template((char*)source->template, current_track, text, 199);
+                update_obs_text_source((char*)source->text_field, text);
+            }
+            curr = curr->next;
         }
+        pthread_mutex_unlock(sources_mutex);
         os_sleep_ms(500);
     }
-    free(last_track_url);
     pthread_exit(NULL);
+}
+
+static int sources_cmp(void* sa, void* sb) {
+    return sa == sb;
 }
 
 static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     obsmed_source* data = bmalloc(sizeof(obsmed_source));
     allocfail_exit(data);
 
-    data->width = 300;
-    data->height = 300;
-    data->texture = NULL;
+    //config
     data->selected_player = obs_data_get_string(settings, SETTING_SELECTED_PLAYER);
     data->fallback_if_selected_player_not_running = obs_data_get_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER);
     data->template = obs_data_get_string(settings, SETTING_TEMPLATE);
     data->text_field = obs_data_get_string(settings, SETTING_TEXT_FIELD);
+    //endconfig
 
-    data->end_update_thread = false;
+    data->width = 300;
+    data->height = 300;
+    data->texture = NULL;
     data->texture_mutex = bmalloc(sizeof(pthread_mutex_t));
     allocfail_exit(data->texture_mutex);
     pthread_mutex_init(data->texture_mutex, NULL);
-    if(pthread_create(&(data->update_thread), NULL, update_func, data)) {
-        fprintf(stderr, "Error creating thread\n");
-        return NULL;
-    }
 
+
+    if (list_size(sources) == 0) { // is first source
+        if(pthread_create(&update_thread, NULL, update_func, &sources)) {
+            fprintf(stderr, "Error creating thread\n");
+            return NULL;
+        }
+    }
+    pthread_mutex_lock(sources_mutex);
+    //thread
+    data->last_track_url = NULL;
+    data->last_update_time = time(NULL);
+    data->last_track = NULL;
+    data->changed = false;
+    //endthread
+
+    list_prepend(&sources, data, sizeof(obsmed_source));
+    pthread_mutex_unlock(sources_mutex);
     return data;
 }
 
 static void obsmed_destroy(void* d) {
     obsmed_source* data = d;
-    data->end_update_thread = true;
-    pthread_join(data->update_thread, NULL);
+
+    pthread_mutex_lock(sources_mutex);
+    list_remove(&sources, data, sources_cmp);
+    if (list_size(sources) == 0) {
+        end_update_thread = true;
+        pthread_join(update_thread, NULL);
+    }
+    pthread_mutex_unlock(sources_mutex);
+
+    free(data->last_track_url);
     pthread_mutex_destroy(data->texture_mutex);
     bfree(data->texture_mutex);
     gs_texture_destroy(data->texture);
@@ -300,5 +342,16 @@ MODULE_EXPORT const char *obs_module_description(void)
 bool obs_module_load(void)
 {
     obs_register_source(&obs_media_info);
+    list_init(&sources);
+
+    sources_mutex = bmalloc(sizeof(pthread_mutex_t));
+    allocfail_exit(sources_mutex);
+    pthread_mutex_init(sources_mutex, NULL);
     return true;
+}
+
+void obs_module_unload(void)
+{
+    pthread_mutex_destroy(sources_mutex);
+    bfree(sources_mutex);
 }
