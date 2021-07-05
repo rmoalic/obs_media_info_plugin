@@ -119,10 +119,7 @@ static void* update_func(void* arg) {
     while (! end_update_thread) {
         mpris_process(); // Get new data
 
-        if (pthread_mutex_trylock(sources_mutex) != 0) { // prevent deadlock when exiting obs, end_update_thread might change
-            os_sleep_ms(200);
-            continue;
-        }
+        pthread_mutex_lock(sources_mutex);
         struct list_element* curr = *sources_lst;
         while (curr != NULL) {
             obsmed_source* source = curr->element;
@@ -227,11 +224,11 @@ static void obsmed_destroy(void* d) {
 
     pthread_mutex_lock(sources_mutex);
     list_remove(&sources, data, sources_cmp);
+    pthread_mutex_unlock(sources_mutex);
     if (list_size(sources) == 0) {
         end_update_thread = true;
         pthread_join(update_thread, NULL);
     }
-    pthread_mutex_unlock(sources_mutex);
 
     free(data->last_track_url);
     pthread_mutex_destroy(data->texture_mutex);
