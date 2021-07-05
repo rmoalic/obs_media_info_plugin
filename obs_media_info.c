@@ -21,7 +21,6 @@ from %album%"
 #define SETTING_TEXT_FIELD "TEXT_FIELD"
 
 typedef struct source {
-    bool live;
     uint32_t width;
     uint32_t height;
     pthread_mutex_t* texture_mutex;
@@ -120,7 +119,10 @@ static void* update_func(void* arg) {
     while (! end_update_thread) {
         mpris_process(); // Get new data
 
-        pthread_mutex_lock(sources_mutex);
+        if (pthread_mutex_trylock(sources_mutex) != 0) { // prevent deadlock when exiting obs, end_update_thread might change
+            os_sleep_ms(200);
+            continue;
+        }
         struct list_element* curr = *sources_lst;
         while (curr != NULL) {
             obsmed_source* source = curr->element;
@@ -179,7 +181,7 @@ static void* update_func(void* arg) {
 }
 
 static int sources_cmp(void* sa, void* sb) {
-    return sa == sb;
+    return !(sa == sb); // 0 means true
 }
 
 static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
