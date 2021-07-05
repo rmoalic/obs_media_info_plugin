@@ -165,9 +165,10 @@ static void* update_func(void* arg) {
                 }
 
                 char text[200];
-                printf("ICI\n");
                 apply_template((char*)source->template, current_track, text, 199);
                 update_obs_text_source((char*)source->text_field, text);
+
+                source->changed = false;
             }
             curr = curr->next;
         }
@@ -255,6 +256,8 @@ static void obsmed_update(void *data, obs_data_t *settings) {
     d->fallback_if_selected_player_not_running = obs_data_get_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER);
     d->template = obs_data_get_string(settings, SETTING_TEMPLATE);
     d->text_field = obs_data_get_string(settings, SETTING_TEXT_FIELD);
+
+    d->changed = true;
 }
 static void obsmed_get_defaults(obs_data_t *settings)
 {
