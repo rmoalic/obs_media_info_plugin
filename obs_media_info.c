@@ -14,6 +14,8 @@
 #define LOG_PREFIX "[obs_media_info] "
 #include "logging.h"
 
+#define obs_module_text(x) #x
+
 #define SETTING_SELECTED_PLAYER "SELECTED_PLAYER"
 #define SETTING_NO_SELECTED_PLAYER "None"
 #define SETTING_FALLBACK_SELECTED_PLAYER "FALLBACK_SELECTED_PLAYER"

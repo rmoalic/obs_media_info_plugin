@@ -1,3 +1,9 @@
 *.o
 *.so
 *.d
+
+*.lib
+*.obj
+*.exp
+*.dll
+*.def

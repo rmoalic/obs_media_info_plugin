@@ -4,6 +4,10 @@
 #include <time.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct track_info_player {
     const char* name;
     const char* fancy_name;
@@ -29,4 +33,9 @@ void track_info_print_players(void);
 void track_info_unregister_player(const char* player);
 void track_info_register_player(const char* player, const char* player_fancy_name);
 TrackInfoPlayer** track_info_get_players(int* ret_nb);
+
+
+#ifdef __cplusplus
+} //end extern "C"
+#endif
 #endif
