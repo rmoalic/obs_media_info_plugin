@@ -163,13 +163,27 @@ static void* update_func(void* arg) {
                     if (source->texture != NULL) gs_texture_destroy(source->texture);
                     //TODO: syncronise texture and text updating
                     source->texture = gs_texture_create_from_file(current_track->album_art_url); //TODO: texture from http only works with obs's ffmpeg backend not with imageMagic.
-                    if (source->texture == NULL) log_warning("error loading texture\n");
+					if (source->texture == NULL) log_warning("error loading texture\n");
                     obs_leave_graphics();
                     pthread_mutex_unlock(source->texture_mutex);
 
                     if (source->last_track_url != NULL) free(source->last_track_url);
                     source->last_track_url = strdup(current_track->album_art_url);
                     allocfail_print(source->last_track_url);
+                }
+
+                if (current_track->album_art != NULL) {
+                    pthread_mutex_lock(source->texture_mutex);
+                    obs_enter_graphics();
+                    if (source->texture != NULL) gs_texture_destroy(source->texture);
+
+                    log_info("drawing new texture\n");
+                    source->texture = gs_texture_create(current_track->album_art_width, current_track->album_art_height, GS_RGBA, 1, &(current_track->album_art), 0);
+
+                    					if (source->texture == NULL) log_warning("error loading texture\n");
+                    obs_leave_graphics();
+                    pthread_mutex_unlock(source->texture_mutex);
+
                 }
 
                 char text[200];
