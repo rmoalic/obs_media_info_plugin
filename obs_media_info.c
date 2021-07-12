@@ -335,7 +335,9 @@ static void obsmed_video_render(void *data, gs_effect_t *effect) {
      obsmed_source* d = data;
 
      if (pthread_mutex_trylock(d->texture_mutex) == 0) {
-         obs_source_draw(d->texture, 0, 0, d->width, d->height, false);
+         if (d->texture != NULL) {
+            obs_source_draw(d->texture, 0, 0, d->width, d->height, false);
+         }
          pthread_mutex_unlock(d->texture_mutex);
      }
 }
