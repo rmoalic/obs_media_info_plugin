@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdbool.h>
-#include <time.h>
 #include <ctype.h>
 #include <assert.h>
 #include <dbus/dbus.h>
