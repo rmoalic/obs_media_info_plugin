@@ -96,7 +96,7 @@ static void track_info_dup(TrackInfo t, TrackInfo* ret) {
     ret->album_art_url = strdup(t.album_art_url);
 	
     if (t.album_art != NULL) {
-        int size = t.album_art_width * t.album_art_height * 3;
+        int size = t.album_art_width * t.album_art_height * 4;
         ret->album_art = malloc(size * sizeof(uint8_t));
         memcpy(ret->album_art, t.album_art, size);
 	    ret->album_art_width = t.album_art_width;
