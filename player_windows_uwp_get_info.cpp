@@ -1,20 +1,15 @@
 #define UNICODE
 
 #pragma comment(lib, "windowsapp")
-#pragma comment(lib, "ole32")
-	
-#include <stdbool.h>
-#include <string.h>
 
 #include <iostream>
-
 
 #include "player_mpris_get_info.h"
 #include "track_info.h"
 #include "utils.h"
 #define LOG_PREFIX "[obs_media_info] "
-
 #include "logging.h"
+
 #include <winrt/base.h>
 #include <winrt/Windows.Graphics.Imaging.h>
 #include <winrt/Windows.Media.Control.h>
@@ -30,104 +25,110 @@ using namespace Windows::Foundation::Collections;
 
 using namespace std;
 
+static void handle_session_change(GlobalSystemMediaTransportControlsSessionManager session_manager, SessionsChangedEventArgs const& args) {
+	// This does not seems to be triggered
+	cout << "HERE §§§" << endl;
 
-void register_players() {
-	GlobalSystemMediaTransportControlsSessionManager session_manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync().get();
-
-	auto sessions = session_manager.GetSessions();
-	GlobalSystemMediaTransportControlsSessionMediaProperties media_properties {nullptr};
-	winrt::hstring AUMI;
-
-	for (auto& session : sessions) {
-		media_properties = session.TryGetMediaPropertiesAsync().get();
-		if (media_properties == nullptr) continue;
-			AUMI = session.SourceAppUserModelId();
-			std::string s = winrt::to_string(AUMI);
-		
-		track_info_register_player(strdup(s.c_str()), strdup(s.c_str()));
-	}
-
+	__debugbreak();
 }
 
-void update_current() {
-	GlobalSystemMediaTransportControlsSessionManager session_manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync().get();
-
+static void handle_media_property_change(GlobalSystemMediaTransportControlsSession session, MediaPropertiesChangedEventArgs const& arg) {
 	TrackInfo current_track;
 	track_info_struct_init(&current_track);
 	bool playing;
 
 	GlobalSystemMediaTransportControlsSessionMediaProperties media_properties {nullptr};
 
-	auto session = session_manager.GetCurrentSession();
-	if (session == nullptr) return;
-
 	winrt::hstring t = session.SourceAppUserModelId();
 	std::string player_t = winrt::to_string(t);
-	const char* player = strdup(player_t.c_str());
-	cout << "Player " << player << endl;
+	const char* player = player_t.c_str();
 
 	media_properties = session.TryGetMediaPropertiesAsync().get();
 
 	if (media_properties == nullptr) return;
 	
 	auto info = session.GetPlaybackInfo();
-	std:string tmp;
-	if (info == nullptr) return;
-
-	auto status = info.PlaybackStatus();
+	if (info == nullptr) return;	
 	
-	playing = status == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing;
 	
-	tmp = winrt::to_string(media_properties.Title());
-	current_track.title = strdup((char*) tmp.c_str());
-	tmp = winrt::to_string(media_properties.Artist());
-	current_track.artist = strdup((char*) tmp.c_str());
-	tmp = winrt::to_string(media_properties.AlbumTitle());
-	current_track.album = strdup((char*) tmp.c_str());
-	current_track.update_time = time(NULL);
+	std::string title = winrt::to_string(media_properties.Title());
+	current_track.title = (char*) title.c_str();
+	std::string artist = winrt::to_string(media_properties.Artist());
+	current_track.artist = (char*) artist.c_str();
+	std::string album = winrt::to_string(media_properties.AlbumTitle());
+	current_track.album = (char*) album.c_str();
 
 
 	auto thumbnail = media_properties.Thumbnail();
+	uint8_t* data = NULL;
 	if (thumbnail != nullptr) {
 		auto stream = thumbnail.OpenReadAsync().get();
 		auto decoder = BitmapDecoder::CreateAsync(stream).get();
-		//auto tmp_file = Windows::Storage::CreateStreamedFileAsync("test_obs.png", stream, NULL);
-		
-		//auto img = decoder.GetSoftwareBitmapAsync().get();
 		auto pixel_data = decoder.GetPixelDataAsync(BitmapPixelFormat::Rgba8, 
 													  BitmapAlphaMode::Premultiplied,
 													  BitmapTransform(),
 													  ExifOrientationMode::IgnoreExifOrientation,
 													  ColorManagementMode::ColorManageToSRgb).get();
-		uint8_t* data = pixel_data.DetachPixelData().data();
+		data = pixel_data.DetachPixelData().data();
 
 		current_track.album_art = data;
 		current_track.album_art_width = decoder.PixelWidth();
 		current_track.album_art_height = decoder.PixelHeight();
-
-		//cout << "tmp: " << tmp_folder.c_str() << cout;
-		
-		//auto encoder = BitmapEncoder::CreateAsync(BitmapEncoder::PngEncoderId(), tmp_file).get();
-
-		//auto folder = Windows::Storage::TemporaryFolder();
-		
-		//cout << "width: " << decoder.PixelWidth() << " height: " << decoder.PixelHeight() << endl;
-		
-		// wcout << L"Path: " << stream.Path();
 	}
 
 
     track_info_register_track_change(player, current_track);
-    track_info_register_state_change(player, playing);
 	
 	track_info_print_players();
 
 }
 
+static void handle_media_playback_info_change(GlobalSystemMediaTransportControlsSession session, PlaybackInfoChangedEventArgs const& args) {
+	
+	winrt::hstring t = session.SourceAppUserModelId();
+	std::string player_t = winrt::to_string(t);
+	const char* player = player_t.c_str();
+
+	auto info = session.GetPlaybackInfo();
+	if (info == nullptr) return;
+
+	auto status = info.PlaybackStatus();
+	bool playing = status == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing;
+
+	track_info_register_state_change(player, playing);
+	
+	track_info_print_players();
+}
+
+void register_players() {
+	GlobalSystemMediaTransportControlsSessionManager session_manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync().get();
+	session_manager.SessionsChanged(handle_session_change);
+
+	auto sessions = session_manager.GetSessions();
+	winrt::hstring AUMI;
+
+	for (auto& session : sessions) {
+		session.MediaPropertiesChanged(handle_media_property_change);
+		session.PlaybackInfoChanged(handle_media_playback_info_change);
+
+		AUMI = session.SourceAppUserModelId();
+		std::string s = winrt::to_string(AUMI);
+		
+		track_info_register_player(s.c_str(), s.c_str());
+
+		handle_media_property_change(session, NULL);
+		handle_media_playback_info_change(session, NULL);
+	}
+
+}
+
+void update_current() {
+// done with the winrt callbacks
+}
+
 extern "C" void mpris_init() {
     log_info("Initialising");
     track_info_init();
-
 
 	register_players();
 }

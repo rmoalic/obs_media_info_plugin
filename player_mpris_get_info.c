@@ -221,7 +221,6 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
     }
 
     if (updated_data) {
-        current_track.update_time = time(NULL);
         track_info_register_track_change(player, current_track);
         playing = true;
         track_info_register_state_change(player, playing); // if a track changes, it is playing (vlc)

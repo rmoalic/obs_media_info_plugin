@@ -159,6 +159,7 @@ void track_info_register_track_change(const char* name, TrackInfo track) {
 
     track_info->updated_once = true;
     track_info_dup(track, &(track_info->track));
+    track_info->track.update_time = time(NULL);
 }
 
 void track_info_register_state_change(const char* name, bool playing) {
@@ -166,6 +167,7 @@ void track_info_register_state_change(const char* name, bool playing) {
     if (track_info == NULL) return;
 
     track_info->playing = playing;
+    track_info->track.update_time = time(NULL);
 }
 
 void track_info_print_players() {

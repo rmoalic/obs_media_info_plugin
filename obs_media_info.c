@@ -127,7 +127,6 @@ static void* update_func(void* arg) {
         struct list_element* curr = *sources_lst;
         while (curr != NULL) {
             obsmed_source* source = curr->element;
-            log_debug("current source: %p", (void*) source);
 
             TrackInfo* current_track = NULL;
             if (strcmp(SETTING_NO_SELECTED_PLAYER, source->selected_player) == 0) {
@@ -154,15 +153,28 @@ static void* update_func(void* arg) {
 
             if (source->changed && current_track != NULL) {
                 log_debug("track changed: %p\n", (void*) current_track);
-                if (current_track->album_art_url != NULL &&
-                    (source->last_track_url == NULL ||
-                     strcmp(source->last_track_url, current_track->album_art_url) != 0)
+
+                if (current_track->album_art != NULL) { //TODO: refactor
+                    pthread_mutex_lock(source->texture_mutex);
+                    obs_enter_graphics();
+                    if (source->texture != NULL) gs_texture_destroy(source->texture);
+
+                    source->texture = gs_texture_create(current_track->album_art_width, current_track->album_art_height, GS_RGBA, 1, &(current_track->album_art), 0);
+
+                    if (source->texture == NULL) log_warning("error loading texture\n");
+                    obs_leave_graphics();
+                    pthread_mutex_unlock(source->texture_mutex);
+                } else if (current_track->album_art_url != NULL &&
+                            (source->last_track_url == NULL ||
+                             strcmp(source->last_track_url, current_track->album_art_url) != 0)
                    ) {
                     pthread_mutex_lock(source->texture_mutex);
                     obs_enter_graphics();
                     if (source->texture != NULL) gs_texture_destroy(source->texture);
                     //TODO: syncronise texture and text updating
+
                     source->texture = gs_texture_create_from_file(current_track->album_art_url); //TODO: texture from http only works with obs's ffmpeg backend not with imageMagic.
+
 					if (source->texture == NULL) log_warning("error loading texture\n");
                     obs_leave_graphics();
                     pthread_mutex_unlock(source->texture_mutex);
@@ -171,21 +183,6 @@ static void* update_func(void* arg) {
                     source->last_track_url = strdup(current_track->album_art_url);
                     allocfail_print(source->last_track_url);
                 }
-
-                if (current_track->album_art != NULL) {
-                    pthread_mutex_lock(source->texture_mutex);
-                    obs_enter_graphics();
-                    if (source->texture != NULL) gs_texture_destroy(source->texture);
-
-                    log_info("drawing new texture\n");
-                    source->texture = gs_texture_create(current_track->album_art_width, current_track->album_art_height, GS_RGBA, 1, &(current_track->album_art), 0);
-
-                    					if (source->texture == NULL) log_warning("error loading texture\n");
-                    obs_leave_graphics();
-                    pthread_mutex_unlock(source->texture_mutex);
-
-                }
-
                 char text[200];
                 apply_template((char*)source->template, current_track, text, 199);
                 update_obs_text_source((char*)source->text_field, text);
@@ -198,6 +195,7 @@ static void* update_func(void* arg) {
         os_sleep_ms(500);
     }
     pthread_exit(NULL);
+    return NULL;
 }
 
 static int sources_cmp(void* sa, void* sb) {
