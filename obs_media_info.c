@@ -7,7 +7,7 @@
 #include <obs/util/platform.h>
 #include <obs/util/threading.h>
 #include <obs/graphics/graphics.h>
-#include "player_mpris_get_info.h"
+#include "player_info_get.h"
 #include "track_info.h"
 #include "utils.h"
 #include "list.h"
@@ -117,11 +117,11 @@ static void apply_template(char* template, TrackInfo* track_info, char* ret, int
 }
 
 static void* update_func(void* arg) {
-    mpris_init();
+    player_info_init();
     list* sources_lst = arg;
 
     while (! end_update_thread) {
-        mpris_process(); // Get new data
+        player_info_process(); // Get new data
 
         pthread_mutex_lock(sources_mutex);
         struct list_element* curr = *sources_lst;

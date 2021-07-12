@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-#include "player_mpris_get_info.h"
+#include "player_info_get.h"
 #include "track_info.h"
 #include "utils.h"
 #define LOG_PREFIX "[obs_media_info] "
@@ -144,18 +144,13 @@ void register_players() {
 
 }
 
-void update_current() {
-// done with the winrt callbacks
-}
-
-extern "C" void mpris_init() {
+extern "C" void player_info_init() {
     log_info("Initialising");
     track_info_init();
 
     register_players();
 }
 
-extern "C" int mpris_process() {
-    update_current();
+extern "C" int player_info_process() {
     return 0;
 }
