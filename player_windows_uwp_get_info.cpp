@@ -64,16 +64,38 @@ static void handle_media_property_change(GlobalSystemMediaTransportControlsSessi
 	if (thumbnail != nullptr) {
 		auto stream = thumbnail.OpenReadAsync().get();
 		auto decoder = BitmapDecoder::CreateAsync(stream).get();
+		auto transform = BitmapTransform();
+		uint32_t width, height;
+		
+		if (player_t == "Spotify.exe") { // The spotify player has branding on the thumbnail, cropping it out
+			static const int Wcrop = 34;
+			static const int Hcrop = 66;
+			BitmapBounds spotify_bound;
+			width = decoder.PixelWidth() - 2 * Wcrop;
+			height = decoder.PixelHeight() - Hcrop;
+
+			spotify_bound.X = Wcrop;
+			spotify_bound.Y = 0;
+			spotify_bound.Width = width;
+			spotify_bound.Height = height;
+
+			transform.Bounds(spotify_bound);
+
+		} else {
+			width = decoder.PixelWidth();
+			height = decoder.PixelHeight();
+		}
+
 		auto pixel_data = decoder.GetPixelDataAsync(BitmapPixelFormat::Rgba8, 
 													  BitmapAlphaMode::Premultiplied,
-													  BitmapTransform(),
+													  transform,
 													  ExifOrientationMode::IgnoreExifOrientation,
 													  ColorManagementMode::ColorManageToSRgb).get();
 		data = pixel_data.DetachPixelData().data();
 
 		current_track.album_art = data;
-		current_track.album_art_width = decoder.PixelWidth();
-		current_track.album_art_height = decoder.PixelHeight();
+		current_track.album_art_width = width;
+		current_track.album_art_height = height;
 	}
 
 
