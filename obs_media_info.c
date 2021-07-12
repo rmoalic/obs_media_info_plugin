@@ -175,7 +175,7 @@ static void* update_func(void* arg) {
 
                     source->texture = gs_texture_create_from_file(current_track->album_art_url); //TODO: texture from http only works with obs's ffmpeg backend not with imageMagic.
 
-					if (source->texture == NULL) log_warning("error loading texture\n");
+                    if (source->texture == NULL) log_warning("error loading texture\n");
                     obs_leave_graphics();
                     pthread_mutex_unlock(source->texture_mutex);
 

@@ -94,13 +94,13 @@ static void track_info_dup(TrackInfo t, TrackInfo* ret) {
     ret->artist = strdup(t.artist);
     ret->title = strdup(t.title);
     ret->album_art_url = strdup(t.album_art_url);
-	
+    
     if (t.album_art != NULL) {
         int size = t.album_art_width * t.album_art_height * 4;
         ret->album_art = malloc(size * sizeof(uint8_t));
         memcpy(ret->album_art, t.album_art, size);
-	    ret->album_art_width = t.album_art_width;
-	    ret->album_art_height = t.album_art_height;
+        ret->album_art_width = t.album_art_width;
+        ret->album_art_height = t.album_art_height;
     }
 
     ret->update_time = t.update_time;
@@ -119,7 +119,7 @@ void track_info_struct_init(TrackInfo* ti) {
     ti->album = NULL;
     ti->title = NULL;
     ti->album_art_url = NULL;
-	ti->album_art = NULL;
+    ti->album_art = NULL;
     ti->album_art_width = 0;
     ti->album_art_height = 0;
     ti->update_time = 0;
