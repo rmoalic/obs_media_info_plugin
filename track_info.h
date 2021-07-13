@@ -3,6 +3,11 @@
 
 #include <time.h>
 #include <stdbool.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct track_info_player {
     const char* name;
@@ -14,6 +19,9 @@ typedef struct track_info {
     char* artist;
     char* album;
     char* album_art_url;
+	uint8_t* album_art;
+	uint32_t  album_art_width;
+	uint32_t  album_art_height;
     time_t update_time;
 } TrackInfo;
 
@@ -29,4 +37,9 @@ void track_info_print_players(void);
 void track_info_unregister_player(const char* player);
 void track_info_register_player(const char* player, const char* player_fancy_name);
 TrackInfoPlayer** track_info_get_players(int* ret_nb);
+
+
+#ifdef __cplusplus
+} //end extern "C"
+#endif
 #endif

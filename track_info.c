@@ -94,6 +94,16 @@ static void track_info_dup(TrackInfo t, TrackInfo* ret) {
     ret->artist = strdup(t.artist);
     ret->title = strdup(t.title);
     ret->album_art_url = strdup(t.album_art_url);
+    
+    if (t.album_art != NULL) {
+        int size = t.album_art_width * t.album_art_height * 4;
+        assert(size % 4 == 0);
+        ret->album_art = malloc(size * sizeof(uint8_t));
+        memcpy(ret->album_art, t.album_art, size);
+        ret->album_art_width = t.album_art_width;
+        ret->album_art_height = t.album_art_height;
+    }
+
     ret->update_time = t.update_time;
 }
 
@@ -102,6 +112,7 @@ void track_info_struct_free(TrackInfo* ti) {
     efree(ti->album);
     efree(ti->title);
     efree(ti->album_art_url);
+    efree(ti->album_art);
 }
 
 void track_info_struct_init(TrackInfo* ti) {
@@ -109,6 +120,9 @@ void track_info_struct_init(TrackInfo* ti) {
     ti->album = NULL;
     ti->title = NULL;
     ti->album_art_url = NULL;
+    ti->album_art = NULL;
+    ti->album_art_width = 0;
+    ti->album_art_height = 0;
     ti->update_time = 0;
 }
 
@@ -120,6 +134,7 @@ void track_info_register_player(const char* name, const char* fancy_name){
     track_info_per_player->player.fancy_name = strdup(fancy_name);
     allocfail_return(track_info_per_player->player.fancy_name);
     track_info_struct_init(&(track_info_per_player->track));
+    track_info_per_player->playing = false;
     track_info_per_player->updated_once = false;
     list_prepend(&players, track_info_per_player, sizeof(TrackInfoPerPlayer));
 }
@@ -146,6 +161,7 @@ void track_info_register_track_change(const char* name, TrackInfo track) {
 
     track_info->updated_once = true;
     track_info_dup(track, &(track_info->track));
+    track_info->track.update_time = time(NULL);
 }
 
 void track_info_register_state_change(const char* name, bool playing) {
@@ -153,6 +169,7 @@ void track_info_register_state_change(const char* name, bool playing) {
     if (track_info == NULL) return;
 
     track_info->playing = playing;
+    track_info->track.update_time = time(NULL);
 }
 
 void track_info_print_players() {

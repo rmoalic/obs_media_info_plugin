@@ -1,6 +1,6 @@
 CC=gcc
 WARNINGS=-Wall -Wextra -Wmissing-prototypes -Wshadow -Wno-unused-parameter
-CFLAGS=-g  -MMD -MP -pedantic `pkgconf --cflags libobs`  $(WARNINGS)
+CFLAGS=-g  -MMD -MP -pedantic -I/usr/include/obs `pkgconf --cflags libobs`  $(WARNINGS)
 
 .PHONY: all clean
 

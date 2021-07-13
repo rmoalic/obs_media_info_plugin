@@ -3,11 +3,10 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdbool.h>
-#include <time.h>
 #include <ctype.h>
 #include <assert.h>
 #include <dbus/dbus.h>
-#include "player_mpris_get_info.h"
+#include "player_info_get.h"
 #include "track_info.h"
 #include "utils.h"
 #define LOG_PREFIX "[obs_media_info] "
@@ -221,7 +220,6 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
     }
 
     if (updated_data) {
-        current_track.update_time = time(NULL);
         track_info_register_track_change(player, current_track);
         playing = true;
         track_info_register_state_change(player, playing); // if a track changes, it is playing (vlc)
@@ -414,7 +412,7 @@ static void mydbus_add_matches(DBusConnection* dbus) {
 }
 
 
-void mpris_init() {
+void player_info_init() {
     log_info("Initialising");
     dbus_connection = mydbus_init_session();
 
@@ -424,6 +422,6 @@ void mpris_init() {
     mydbus_register_names(dbus_connection);
 }
 
-int mpris_process() {
+int player_info_process() {
     return dbus_connection_read_write_dispatch(dbus_connection, 500);
 }
