@@ -1,7 +1,5 @@
 # obs_media_info
 
-> **WARNING** This project only works on linux
-
 This project is an attempt at making a [OBS Studio](https://obsproject.com/) plugin.
 
 The plugin display the current playing track info (title, album, artist) and artwork.
@@ -13,7 +11,7 @@ Data is collected though the [MPRIS 2](https://specifications.freedesktop.org/mp
 
 
 ## Windows
-Get Latest dll from the [release tab](/releases).
+Get Latest dll from the [release tab](https://github.com/rmoalic/obs_media_info_plugin/releases).
 
 ### Build
 
