@@ -26,7 +26,7 @@ using namespace Windows::Foundation::Collections;
 using namespace std;
 
 static void handle_session_change(GlobalSystemMediaTransportControlsSessionManager session_manager, SessionsChangedEventArgs const& args) {
-    // This does not seems to be triggered
+    // TODO: handle player hot connect/disconnect, when microsoft fixes the bug that makes this function not being called 
     cout << "HERE §§§" << endl;
 
     __debugbreak();

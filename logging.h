@@ -1,6 +1,6 @@
 #ifndef logging_include
 #define logging_include 1
-#include <obs/util/base.h>
+#include <libobs/util/base.h>
 
 #ifndef LOG_PREFIX
 #error LOG_PREFIX need to be defined to user logging.h
