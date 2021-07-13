@@ -97,6 +97,7 @@ static void track_info_dup(TrackInfo t, TrackInfo* ret) {
     
     if (t.album_art != NULL) {
         int size = t.album_art_width * t.album_art_height * 4;
+        assert(size % 4 == 0);
         ret->album_art = malloc(size * sizeof(uint8_t));
         memcpy(ret->album_art, t.album_art, size);
         ret->album_art_width = t.album_art_width;
@@ -133,6 +134,7 @@ void track_info_register_player(const char* name, const char* fancy_name){
     track_info_per_player->player.fancy_name = strdup(fancy_name);
     allocfail_return(track_info_per_player->player.fancy_name);
     track_info_struct_init(&(track_info_per_player->track));
+    track_info_per_player->playing = false;
     track_info_per_player->updated_once = false;
     list_prepend(&players, track_info_per_player, sizeof(TrackInfoPerPlayer));
 }

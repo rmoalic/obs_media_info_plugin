@@ -46,11 +46,11 @@ static void handle_media_property_change(GlobalSystemMediaTransportControlsSessi
     media_properties = session.TryGetMediaPropertiesAsync().get();
 
     if (media_properties == nullptr) return;
-    
+
     auto info = session.GetPlaybackInfo();
-    if (info == nullptr) return;	
-    
-    
+    if (info == nullptr) return;
+
+
     std::string title = winrt::to_string(media_properties.Title());
     current_track.title = (char*) title.c_str();
     std::string artist = winrt::to_string(media_properties.Artist());
@@ -60,6 +60,7 @@ static void handle_media_property_change(GlobalSystemMediaTransportControlsSessi
 
 
     auto thumbnail = media_properties.Thumbnail();
+    com_array<uint8_t> pixel_data_detached;
     uint8_t* data = NULL;
     if (thumbnail != nullptr) {
         auto stream = thumbnail.OpenReadAsync().get();
@@ -91,7 +92,8 @@ static void handle_media_property_change(GlobalSystemMediaTransportControlsSessi
                                                       transform,
                                                       ExifOrientationMode::IgnoreExifOrientation,
                                                       ColorManagementMode::ColorManageToSRgb).get();
-        data = pixel_data.DetachPixelData().data();
+        pixel_data_detached = pixel_data.DetachPixelData();
+        data = (uint8_t*) pixel_data_detached.data();
 
         current_track.album_art = data;
         current_track.album_art_width = width;
