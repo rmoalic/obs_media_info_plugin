@@ -1,12 +1,14 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
-#include <libobs/obs.h>
-#include <libobs/obs-module.h>
-#include <libobs/util/bmem.h>
-#include <libobs/util/platform.h>
-#include <libobs/util/threading.h>
-#include <libobs/graphics/graphics.h>
+// OBS
+#include <obs.h>
+#include <obs-module.h>
+#include <util/bmem.h>
+#include <util/platform.h>
+#include <util/threading.h>
+#include <graphics/graphics.h>
+// END OBS
 #include "player_info_get.h"
 #include "track_info.h"
 #include "utils.h"
@@ -159,7 +161,7 @@ static void* update_func(void* arg) {
                     obs_enter_graphics();
                     if (source->texture != NULL) gs_texture_destroy(source->texture);
 
-                    source->texture = gs_texture_create(current_track->album_art_width, current_track->album_art_height, GS_RGBA, 1, &(current_track->album_art), 0);
+                    source->texture = gs_texture_create(current_track->album_art_width, current_track->album_art_height, GS_RGBA, 1, (const uint8_t **) &(current_track->album_art), 0);
 
                     if (source->texture == NULL) log_warning("error loading texture\n");
                     obs_leave_graphics();
