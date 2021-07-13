@@ -4,7 +4,7 @@ This project is an attempt at making a [OBS Studio](https://obsproject.com/) plu
 
 The plugin display the current playing track info (title, album, artist) and artwork.
 
-Data is collected though the [MPRIS 2](https://specifications.freedesktop.org/mpris-spec/latest/) or [Windows.Media.Control](https://docs.microsoft.com/en-us/uwp/api/windows.media.control?view=winrt-20348) interface so a lot of players should be supported (VLC, Spotify, Firefox, ...).
+Data is collected though the [MPRIS 2](https://specifications.freedesktop.org/mpris-spec/latest/) or [Windows.Media.Control](https://docs.microsoft.com/en-us/uwp/api/windows.media.control?view=winrt-20348) interfaces so a lot of players should be supported (VLC, Spotify, Firefox, ...).
 
 ## Screenshot
 ![Screenshot of obs with the plugin installed](screen.png)
