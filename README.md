@@ -69,7 +69,9 @@ $ cp obs_media_plugin.so /usr/share/obs/obs-plugins/
 - [ ] Handle different artwork ratio (ex: Youtube videos)
 - [ ] Handle missing artwork (or partial info in general)
 - [ ] Not relying on ffmpeg to download images files (linux)
+- [ ] Build using cmake like others obs plugins
 
 ## Note
 
-If using Firefox make sure `media.hardwaremediakeys.enabled` is set to `true` (default)
+* If using Firefox make sure `media.hardwaremediakeys.enabled` is set to `true` (default)
+* On Windows, the player must be started before obs starts. Otherwise the infos will not be available. This is because of a bug introduced in windows 20H1, with prevent the feature to be implemented the 'correct' way. Workarounds are possible but none are implemented at this time.
