@@ -21,6 +21,7 @@
 #define SETTING_SELECTED_PLAYER "SELECTED_PLAYER"
 #define SETTING_NO_SELECTED_PLAYER "None"
 #define SETTING_FALLBACK_SELECTED_PLAYER "FALLBACK_SELECTED_PLAYER"
+#define SETTING_BLACKOUT_IF_NOT_PLAYING "BLACKOUT_NOT_PLAYING"
 #define SETTING_TEMPLATE "TEXT_TEMPLATE"
 #define SETTING_TEMPLATE_DEFAULT "\"%title%\" - %artist%\n\
 from %album%"
@@ -35,6 +36,7 @@ typedef struct source {
     //config
     const char* selected_player;
     bool fallback_if_selected_player_not_running;
+    bool blackout_if_not_playing;
     const char* template;
     const char* text_field;
 
@@ -156,8 +158,9 @@ static void update_source(obsmed_source* source) {
     TrackInfo* current_track = update_get_current_track(source);
 
     source->changed = update_track_is_different_from_last(source, current_track);
+    if (! source->changed) return;
 
-    if (source->changed && current_track != NULL) {
+    if (current_track != NULL) {
         if (current_track->album_art != NULL) { //TODO: refactor
             pthread_mutex_lock(source->texture_mutex);
             obs_enter_graphics();
@@ -183,16 +186,30 @@ static void update_source(obsmed_source* source) {
             obs_leave_graphics();
             pthread_mutex_unlock(source->texture_mutex);
 
-            if (source->last_track_url != NULL) free(source->last_track_url);
+            efree(source->last_track_url);
             source->last_track_url = strdup(current_track->album_art_url);
             allocfail_print(source->last_track_url);
         }
         char text[200];
         apply_template((char*)source->template, current_track, text, 199);
         update_obs_text_source((char*)source->text_field, text);
-
-        source->changed = false;
+    } else {
+        if (blackout_if_not_playing) {
+            // remove texture
+            if (source->texture != NULL) {
+                pthread_mutex_lock(source->texture_mutex);
+                obs_enter_graphics();
+                gs_texture_destroy(source->texture);
+                source->texture = NULL;
+                obs_leave_graphics();
+                pthread_mutex_unlock(source->texture_mutex);
+                efree(source->last_track_url);
+            }
+            // remove text
+            update_obs_text_source((char*)source->text_field, "");
+        }
     }
+    source->changed = false;
 }
 
 static void* update_func(void* arg) {
@@ -229,6 +246,7 @@ static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     //config
     data->selected_player = obs_data_get_string(settings, SETTING_SELECTED_PLAYER);
     data->fallback_if_selected_player_not_running = obs_data_get_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER);
+    data->blackout_if_not_playing = obs_data_get_bool(settings, SETTING_BLACKOUT_IF_NOT_PLAYING);
     data->template = obs_data_get_string(settings, SETTING_TEMPLATE);
     data->text_field = obs_data_get_string(settings, SETTING_TEXT_FIELD);
     //endconfig
@@ -273,7 +291,7 @@ static void obsmed_destroy(void* d) {
         pthread_join(update_thread, NULL);
     }
 
-    free(data->last_track_url);
+    efree(data->last_track_url);
     pthread_mutex_destroy(data->texture_mutex);
     bfree(data->texture_mutex);
     gs_texture_destroy(data->texture);
@@ -296,6 +314,7 @@ static void obsmed_update(void *data, obs_data_t *settings) {
 
     d->selected_player = obs_data_get_string(settings, SETTING_SELECTED_PLAYER);
     d->fallback_if_selected_player_not_running = obs_data_get_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER);
+    d->blackout_if_not_playing = obs_data_get_bool(settings, SETTING_BLACKOUT_IF_NOT_PLAYING);
     d->template = obs_data_get_string(settings, SETTING_TEMPLATE);
     d->text_field = obs_data_get_string(settings, SETTING_TEXT_FIELD);
 
@@ -306,6 +325,7 @@ static void obsmed_get_defaults(obs_data_t *settings)
 {
     obs_data_set_default_string(settings, SETTING_SELECTED_PLAYER, SETTING_NO_SELECTED_PLAYER);
     obs_data_set_default_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER, false);
+    obs_data_set_default_bool(settings, SETTING_BLACKOUT_IF_NOT_PLAYING, false);
     obs_data_set_default_string(settings, SETTING_TEMPLATE, SETTING_TEMPLATE_DEFAULT);
     obs_data_set_default_string(settings, SETTING_TEXT_FIELD, "");
 }
@@ -335,10 +355,12 @@ static obs_properties_t* obsmed_get_properties(void *data)
             if (strstr(players[i]->fancy_name, "instance") != NULL) continue; // don't include instances of player. Their id is random
             obs_property_list_add_string(p, players[i]->fancy_name, players[i]->fancy_name);
         }
-        free(players);
+        efree(players);
     }
 
-    obs_properties_add_bool(props, SETTING_FALLBACK_SELECTED_PLAYER, obs_module_text("Fallback if selected player not running"));
+    obs_properties_add_bool(props, SETTING_FALLBACK_SELECTED_PLAYER, obs_module_text("Fallback to other players if the selected player is not running"));
+
+    obs_properties_add_bool(props, SETTING_BLACKOUT_IF_NOT_PLAYING, obs_module_text("Blackout if no player is playing"));
 
     p = obs_properties_add_list(props, SETTING_TEXT_FIELD, obs_module_text("Text source name"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
     obs_property_list_add_string(p, "", "");
