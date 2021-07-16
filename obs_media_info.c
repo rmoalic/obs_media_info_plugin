@@ -194,7 +194,7 @@ static void update_source(obsmed_source* source) {
         apply_template((char*)source->template, current_track, text, 199);
         update_obs_text_source((char*)source->text_field, text);
     } else {
-        if (blackout_if_not_playing) {
+        if (source->blackout_if_not_playing) {
             // remove texture
             if (source->texture != NULL) {
                 pthread_mutex_lock(source->texture_mutex);
