@@ -3,6 +3,8 @@
 #pragma comment(lib, "windowsapp")
 
 #include <iostream>
+#include <set>
+#include <algorithm>
 
 #include "player_info_get.h"
 #include "track_info.h"
@@ -25,11 +27,13 @@ using namespace Windows::Foundation::Collections;
 
 using namespace std;
 
-static void handle_session_change(GlobalSystemMediaTransportControlsSessionManager session_manager, SessionsChangedEventArgs const& args) {
-    // TODO: handle player hot connect/disconnect, when microsoft fixes the bug that makes this function not being called 
-    cout << "HERE §§§" << endl;
+void update_players_registration();
 
-    __debugbreak();
+static GlobalSystemMediaTransportControlsSessionManager session_manager { nullptr };
+set<string> registered_players;
+
+static void handle_session_change(GlobalSystemMediaTransportControlsSessionManager session_manager_l, SessionsChangedEventArgs  const& args) {
+    update_players_registration();
 }
 
 static void handle_media_property_change(GlobalSystemMediaTransportControlsSession session, MediaPropertiesChangedEventArgs const& arg) {
@@ -124,33 +128,49 @@ static void handle_media_playback_info_change(GlobalSystemMediaTransportControls
     track_info_print_players();
 }
 
-void register_players() {
-    GlobalSystemMediaTransportControlsSessionManager session_manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync().get();
-    session_manager.SessionsChanged(handle_session_change);
-
+void update_players_registration() {
+    set<string> players_seen;
     auto sessions = session_manager.GetSessions();
     winrt::hstring AUMI;
 
     for (auto& session : sessions) {
-        session.MediaPropertiesChanged(handle_media_property_change);
-        session.PlaybackInfoChanged(handle_media_playback_info_change);
-
         AUMI = session.SourceAppUserModelId();
         std::string s = winrt::to_string(AUMI);
         
-        track_info_register_player(s.c_str(), s.c_str());
+        players_seen.insert(s);
+        if (registered_players.find(s) == registered_players.end()) { // not found
+            session.MediaPropertiesChanged(handle_media_property_change);
+            session.PlaybackInfoChanged(handle_media_playback_info_change);
 
-        handle_media_property_change(session, NULL);
-        handle_media_playback_info_change(session, NULL);
+            registered_players.insert(s);
+            track_info_register_player(s.c_str(), s.c_str());
+
+            handle_media_property_change(session, NULL);
+            handle_media_playback_info_change(session, NULL);
+        }
     }
+    set<string> players_not_seen;
+    set_difference(registered_players.begin(), registered_players.end(), players_seen.begin(), players_seen.end(), std::inserter(players_not_seen, players_not_seen.end()));
 
+    for (string player_name: players_not_seen) {
+        track_info_unregister_player(player_name.c_str());
+        registered_players.erase(player_name);
+    }
 }
 
 extern "C" void player_info_init() {
     log_info("Initialising");
     track_info_init();
 
-    register_players();
+    try {
+        session_manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync().get();
+    } catch (...) {
+        log_error("an error occured while getting the GlobalSystemMediaTransportControlsSessionManager");
+        return;
+    }
+    session_manager.SessionsChanged(handle_session_change);
+
+    update_players_registration();
 }
 
 extern "C" int player_info_process() {
