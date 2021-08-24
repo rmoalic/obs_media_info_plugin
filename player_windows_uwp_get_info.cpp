@@ -3,7 +3,6 @@
 #pragma comment(lib, "windowsapp")
 
 #include <iostream>
-#include <set>
 #include <algorithm>
 
 #include "player_info_get.h"
@@ -30,7 +29,7 @@ using namespace std;
 void update_players_registration();
 
 static GlobalSystemMediaTransportControlsSessionManager session_manager { nullptr };
-set<string> registered_players;
+vector<string> registered_players;
 
 static void handle_session_change(GlobalSystemMediaTransportControlsSessionManager session_manager_l, SessionsChangedEventArgs  const& args) {
     update_players_registration();
@@ -129,7 +128,7 @@ static void handle_media_playback_info_change(GlobalSystemMediaTransportControls
 }
 
 void update_players_registration() {
-    set<string> players_seen;
+    vector<string> players_seen;
     auto sessions = session_manager.GetSessions();
     winrt::hstring AUMI;
 
@@ -137,24 +136,26 @@ void update_players_registration() {
         AUMI = session.SourceAppUserModelId();
         std::string s = winrt::to_string(AUMI);
         
-        players_seen.insert(s);
-        if (registered_players.find(s) == registered_players.end()) { // not found
+        players_seen.push_back(s);
+        if (find(registered_players.begin(), registered_players.end(), s) == registered_players.end()) { // not found
             session.MediaPropertiesChanged(handle_media_property_change);
             session.PlaybackInfoChanged(handle_media_playback_info_change);
 
-            registered_players.insert(s);
+            registered_players.push_back(s);
             track_info_register_player(s.c_str(), s.c_str());
 
             handle_media_property_change(session, NULL);
             handle_media_playback_info_change(session, NULL);
         }
     }
-    set<string> players_not_seen;
-    set_difference(registered_players.begin(), registered_players.end(), players_seen.begin(), players_seen.end(), std::inserter(players_not_seen, players_not_seen.end()));
+    sort(registered_players.begin(), registered_players.end());
+    sort(players_seen.begin(), players_seen.end());
+    vector<string> players_not_seen;
+    set_difference(registered_players.begin(), registered_players.end(), players_seen.begin(), players_seen.end(), inserter(players_not_seen, players_not_seen.end()));
 
     for (string player_name: players_not_seen) {
         track_info_unregister_player(player_name.c_str());
-        registered_players.erase(player_name);
+        registered_players.erase(std::remove(registered_players.begin(), registered_players.end(), player_name), registered_players.end());
     }
 }
 
