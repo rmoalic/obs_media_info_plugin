@@ -32,6 +32,8 @@ typedef struct source {
     uint32_t height;
     pthread_mutex_t* texture_mutex;
     gs_texture_t* texture;
+    uint32_t texture_width;
+    uint32_t texture_height;
 
     //config
     const char* selected_player;
@@ -166,6 +168,8 @@ static void update_source(obsmed_source* source) {
             obs_enter_graphics();
             if (source->texture != NULL) gs_texture_destroy(source->texture);
 
+            source->texture_width = current_track->album_art_width;
+            source->texture_height = current_track->album_art_height;
             source->texture = gs_texture_create(current_track->album_art_width, current_track->album_art_height, GS_RGBA, 1, (const uint8_t **) &(current_track->album_art), 0);
 
             if (source->texture == NULL) log_warning("error loading texture\n");
@@ -180,6 +184,8 @@ static void update_source(obsmed_source* source) {
             if (source->texture != NULL) gs_texture_destroy(source->texture);
             //TODO: syncronise texture and text updating
 
+            source->texture_width = source->width;
+            source->texture_height = source->height;
             source->texture = gs_texture_create_from_file(current_track->album_art_url); //TODO: texture from http only works with obs's ffmpeg backend not with imageMagic.
 
             if (source->texture == NULL) log_warning("error loading texture\n");
@@ -255,6 +261,8 @@ static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     data->height = 300;
     data->texture = NULL;
     data->texture_mutex = bmalloc(sizeof(pthread_mutex_t));
+    data->texture_width = 0;
+    data->texture_height = 0;
     allocfail_exit(data->texture_mutex);
     pthread_mutex_init(data->texture_mutex, NULL);
 
@@ -371,12 +379,41 @@ static obs_properties_t* obsmed_get_properties(void *data)
 }
 
 
+static void center_texture_on_container(uint32_t container_width, uint32_t container_height, uint32_t texture_width, uint32_t texture_height, int* x, int* y, uint32_t* cx, uint32_t* cy) {
+    if (texture_width == 0 || texture_height == 0) return;
+    double tcx = (double) texture_width * ((double) container_width / ((double) texture_width));
+    double tcy = (double) texture_height * ((double) container_height / ((double) texture_height));
+    double texture_ratio = texture_width / (texture_height * 1.0);
+    if (texture_ratio < 1.0) {
+        tcx *= texture_ratio;        
+    } else {
+        tcy /= texture_ratio;
+    }
+
+    *cx = 0.5 + tcx;
+    *cy = 0.5 + tcy;
+
+    if (*cy < container_height) {
+        *y = (container_height - *cy) / 2;
+    } else {
+        *y = 0;
+    }
+    if (*cx < container_width) {
+        *x = (container_width - *cx) / 2;
+    } else {
+        *x = 0;
+    }
+}
+
 static void obsmed_video_render(void *data, gs_effect_t *effect) {
      obsmed_source* d = data;
 
      if (pthread_mutex_trylock(d->texture_mutex) == 0) {
          if (d->texture != NULL) {
-            obs_source_draw(d->texture, 0, 0, d->width, d->height, false);
+            int x, y;
+            uint32_t cx, cy;
+            center_texture_on_container(d->width, d->height, d->texture_width, d->texture_height, &x, &y, &cx, &cy);
+            obs_source_draw(d->texture, x, y, cx, cy, false);
          }
          pthread_mutex_unlock(d->texture_mutex);
      }
