@@ -1,6 +1,6 @@
 @echo off
 
-set CFLAGS=/std:c17 /utf-8 /Zi
+set CFLAGS=/std:c17 /utf-8 /Zi /analyze
 set CXXFLAGS=/std:c++17 /utf-8 /EHsc /Zi
 set INCLUDES=/I . /I obs_studio/libobs
 set LIBS=obs.lib w32-pthreads.lib

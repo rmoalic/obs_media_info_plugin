@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
+#include <sal.h>
 // OBS
 #include <obs.h>
 #include <obs-module.h>
@@ -36,14 +37,14 @@ typedef struct source {
     uint32_t texture_height;
 
     //config
-    const char* selected_player;
+    _Field_z_ const char* selected_player;
     bool fallback_if_selected_player_not_running;
     bool blackout_if_not_playing;
-    const char* template;
-    const char* text_field;
+    _Field_z_ const char* template;
+    _Field_z_ const char* text_field;
 
     // thread
-    char* last_track_url;
+    _Field_z_ char* last_track_url;
     time_t last_update_time;
     TrackInfo* last_track;
     bool changed;
@@ -56,11 +57,11 @@ static pthread_mutex_t* sources_mutex;
 static pthread_t update_thread;
 static bool end_update_thread = false;
 
-static const char* obsmed_get_name(void* type_data) {
+static const char* obsmed_get_name(_In_ void* type_data) {
     return "Media infos";
 }
 
-static void update_obs_text_source(char* source_name, char* new_text) {
+static void update_obs_text_source(_In_z_ char* source_name, _In_z_ char* new_text) {
     obs_source_t* text_source = obs_get_source_by_name(source_name);
     if (text_source == NULL) return;
     obs_data_t* tdata = obs_data_create();
@@ -73,12 +74,12 @@ static void update_obs_text_source(char* source_name, char* new_text) {
     obs_source_release(text_source);
 }
 
-static int strlen0(char* str) {
+static int strlen0(_In_opt_z_ char* str) {
     if (str == NULL) return 0;
     return strlen(str);
 }
 
-static void apply_template(char* template, TrackInfo* track_info, char* ret, int nb_max) {
+static void apply_template(_In_z_ char* template, _In_ TrackInfo* track_info, _Out_cap_(nb_max) char* ret, _In_ int nb_max) {
     char tmp[200];
     char* token;
     int nb_token = 0;
@@ -122,7 +123,7 @@ static void apply_template(char* template, TrackInfo* track_info, char* ret, int
     }
 }
 
-static bool update_track_is_different_from_last(obsmed_source* source, TrackInfo* track) {
+static bool update_track_is_different_from_last(_In_ obsmed_source* source, _In_ TrackInfo* track) {
     bool ret = false;
 
     if (track != source->last_track) {
@@ -140,7 +141,7 @@ static bool update_track_is_different_from_last(obsmed_source* source, TrackInfo
     return ret;
 }
 
-static TrackInfo* update_get_current_track(obsmed_source* source) {
+static TrackInfo* update_get_current_track(_In_ obsmed_source* source) {
     TrackInfo* current_track = NULL;
 
     if (strcmp(SETTING_NO_SELECTED_PLAYER, source->selected_player) == 0) {
@@ -156,7 +157,7 @@ static TrackInfo* update_get_current_track(obsmed_source* source) {
     return current_track;
 }
 
-static void update_source(obsmed_source* source) {
+static void update_source(_In_ obsmed_source* source) {
     TrackInfo* current_track = update_get_current_track(source);
 
     source->changed = update_track_is_different_from_last(source, current_track);
@@ -218,7 +219,7 @@ static void update_source(obsmed_source* source) {
     source->changed = false;
 }
 
-static void* update_func(void* arg) {
+static void* update_func(_In_ void* arg) {
     player_info_init();
     list* sources_lst = arg;
 
@@ -241,11 +242,11 @@ static void* update_func(void* arg) {
     return NULL;
 }
 
-static int sources_cmp(void* sa, void* sb) {
+static int sources_cmp(_In_ void* sa, _In_ void* sb) {
     return !(sa == sb); // 0 means true
 }
 
-static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
+static void* obsmed_create(_In_ obs_data_t *settings, _In_ obs_source_t *source) {
     obsmed_source* data = bmalloc(sizeof(obsmed_source));
     allocfail_exit(data);
 
@@ -287,7 +288,7 @@ static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     return data;
 }
 
-static void obsmed_destroy(void* d) {
+static void obsmed_destroy(_In_ void* d) {
     obsmed_source* data = d;
 
     pthread_mutex_lock(sources_mutex);
@@ -306,18 +307,18 @@ static void obsmed_destroy(void* d) {
     bfree(data);
 }
 
-static uint32_t obsmed_get_width(void* data) {
+static uint32_t obsmed_get_width(_In_ void* data) {
     obsmed_source* d = data;
     return d->width;
 }
 
-static uint32_t obsmed_get_height(void* data) {
+static uint32_t obsmed_get_height(_In_ void* data) {
     obsmed_source* d = data;
     return d->height;
 }
 
 
-static void obsmed_update(void *data, obs_data_t *settings) {
+static void obsmed_update(_In_ void *data, _In_ obs_data_t *settings) {
     obsmed_source* d = data;
 
     d->selected_player = obs_data_get_string(settings, SETTING_SELECTED_PLAYER);
@@ -329,7 +330,7 @@ static void obsmed_update(void *data, obs_data_t *settings) {
     log_debug("track changed: plugin settings update\n");
     d->changed = true;
 }
-static void obsmed_get_defaults(obs_data_t *settings)
+static void obsmed_get_defaults(_In_ obs_data_t *settings)
 {
     obs_data_set_default_string(settings, SETTING_SELECTED_PLAYER, SETTING_NO_SELECTED_PLAYER);
     obs_data_set_default_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER, false);
@@ -338,7 +339,7 @@ static void obsmed_get_defaults(obs_data_t *settings)
     obs_data_set_default_string(settings, SETTING_TEXT_FIELD, "");
 }
 
-static bool add_sources_from_text_plugins(void* param, obs_source_t* source) {
+static bool add_sources_from_text_plugins(_In_ void* param, _In_ obs_source_t* source) {
     obs_property_t* p = param;
     const char* id = obs_source_get_id(source);
 
@@ -349,7 +350,7 @@ static bool add_sources_from_text_plugins(void* param, obs_source_t* source) {
     return true;
 }
 
-static obs_properties_t* obsmed_get_properties(void *data)
+static obs_properties_t* obsmed_get_properties(_In_ void *data)
 {
 //    obsmed_source* d = data;
     obs_properties_t *props = obs_properties_create();
@@ -379,7 +380,7 @@ static obs_properties_t* obsmed_get_properties(void *data)
 }
 
 
-static void center_texture_on_container(uint32_t container_width, uint32_t container_height, uint32_t texture_width, uint32_t texture_height, int* x, int* y, uint32_t* cx, uint32_t* cy) {
+static void center_texture_on_container(_In_ uint32_t container_width, _In_ uint32_t container_height, _In_ uint32_t texture_width, _In_ uint32_t texture_height, _Out_ int* x, _Out_ int* y, _Out_ uint32_t* cx, _Out_ uint32_t* cy) {
     if (texture_width == 0 || texture_height == 0) return;
     double tcx = (double) texture_width * ((double) container_width / ((double) texture_width));
     double tcy = (double) texture_height * ((double) container_height / ((double) texture_height));
@@ -405,7 +406,7 @@ static void center_texture_on_container(uint32_t container_width, uint32_t conta
     }
 }
 
-static void obsmed_video_render(void *data, gs_effect_t *effect) {
+static void obsmed_video_render(_In_ void *data, _In_ gs_effect_t *effect) {
      obsmed_source* d = data;
 
      if (pthread_mutex_trylock(d->texture_mutex) == 0) {

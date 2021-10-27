@@ -18,7 +18,7 @@ typedef struct track_info_per_player {
 
 static list players;
 
-static int players_name_cmp(TrackInfoPerPlayer* a, TrackInfoPerPlayer* b) {
+static int players_name_cmp(_In_ TrackInfoPerPlayer* a, _In_ TrackInfoPerPlayer* b) {
     return strcmp(a->player.name, b->player.name);
 }
 
@@ -47,7 +47,7 @@ TrackInfo* track_info_get_best_cantidate() {
     return best_candidate;
 }
 
-TrackInfo* track_info_get_from_selected_player_fancy_name(const char* player_fancy_name) {
+TrackInfo* track_info_get_from_selected_player_fancy_name(_In_z_ const char* player_fancy_name) {
     struct list_element* curr = players;
     TrackInfo* best_candidate = NULL;
     int player_name_len = strlen(player_fancy_name);
@@ -71,7 +71,7 @@ TrackInfo* track_info_get_from_selected_player_fancy_name(const char* player_fan
     return best_candidate;
 }
 
-TrackInfoPlayer** track_info_get_players(int* ret_nb) {
+TrackInfoPlayer** track_info_get_players(_Out_ int* ret_nb) {
     struct list_element* curr = players;
     int nb_player = list_size(players);
 
@@ -89,7 +89,7 @@ TrackInfoPlayer** track_info_get_players(int* ret_nb) {
     return ret;
 }
 
-static void track_info_dup(TrackInfo t, TrackInfo* ret) {
+static void track_info_dup(_In_ TrackInfo t, _Inout_ TrackInfo* ret) {
     ret->album = strdup(t.album);
     ret->artist = strdup(t.artist);
     ret->title = strdup(t.title);
@@ -107,7 +107,7 @@ static void track_info_dup(TrackInfo t, TrackInfo* ret) {
     ret->update_time = t.update_time;
 }
 
-void track_info_struct_free(TrackInfo* ti) {
+void track_info_struct_free(_In_ TrackInfo* ti) {
     efree(ti->artist);
     efree(ti->album);
     efree(ti->title);
@@ -115,7 +115,7 @@ void track_info_struct_free(TrackInfo* ti) {
     efree(ti->album_art);
 }
 
-void track_info_struct_init(TrackInfo* ti) {
+void track_info_struct_init(_Inout_ TrackInfo* ti) {
     ti->artist = NULL;
     ti->album = NULL;
     ti->title = NULL;
@@ -126,7 +126,7 @@ void track_info_struct_init(TrackInfo* ti) {
     ti->update_time = 0;
 }
 
-void track_info_register_player(const char* name, const char* fancy_name){
+void track_info_register_player(_In_z_ const char* name, _In_z_ const char* fancy_name){
     TrackInfoPerPlayer* track_info_per_player = malloc(sizeof(TrackInfoPerPlayer));
     allocfail_return(track_info_per_player);
     track_info_per_player->player.name = strdup(name);
@@ -139,12 +139,12 @@ void track_info_register_player(const char* name, const char* fancy_name){
     list_prepend(&players, track_info_per_player, sizeof(TrackInfoPerPlayer));
 }
 
-void track_info_unregister_player(const char* name) {
+void track_info_unregister_player(_In_z_ const char* name) {
     TrackInfoPerPlayer h = {.player.name = name};
     list_remove(&players, &h, (list_cmpfunc) players_name_cmp);
 }
 
-static TrackInfoPerPlayer* track_info_get_for_player(const char* name) {
+static TrackInfoPerPlayer* track_info_get_for_player(_In_z_ const char* name) {
     TrackInfoPerPlayer* track_info = NULL;
     TrackInfoPerPlayer h = {.player.name = name};
     if (list_search(&players, &h, (list_cmpfunc) players_name_cmp, (void**) &track_info)) {
@@ -155,7 +155,7 @@ static TrackInfoPerPlayer* track_info_get_for_player(const char* name) {
     return track_info;
 }
 
-void track_info_register_track_change(const char* name, TrackInfo track) {
+void track_info_register_track_change(_In_z_ const char* name, _In_ TrackInfo track) {
     TrackInfoPerPlayer* track_info = track_info_get_for_player(name);
     if (track_info == NULL) return;
 
@@ -164,7 +164,7 @@ void track_info_register_track_change(const char* name, TrackInfo track) {
     track_info->track.update_time = time(NULL);
 }
 
-void track_info_register_state_change(const char* name, bool playing) {
+void track_info_register_state_change(_In_z_ const char* name, _In_ bool playing) {
     TrackInfoPerPlayer* track_info = track_info_get_for_player(name);
     if (track_info == NULL) return;
 
@@ -188,6 +188,6 @@ void track_info_print_players() {
     }
 }
 
-void track_info_print(TrackInfo ti) {
+void track_info_print(_In_ TrackInfo ti) {
     printf("%s - \"%s\" from %s, art: %s\n", ti.artist, ti.title, ti.album, ti.album_art_url);
 }
