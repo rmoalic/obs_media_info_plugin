@@ -11,5 +11,6 @@
 
 #define efree(ptr) do {if (ptr != NULL) { free(ptr); ptr = NULL; }} while(0)
 #define estrcmp(a, b) ((a == NULL || b == NULL) ? 0 : strcmp(a, b))
+#define estrdup(ptr) (ptr == NULL ? NULL : strdup(ptr))
 
 #endif

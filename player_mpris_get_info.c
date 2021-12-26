@@ -15,11 +15,13 @@
 #define NB_PLAYER_MAX 10
 static const char MPRIS_NAME_START[] = "org.mpris.MediaPlayer2";
 
-static DBusConnection* dbus_connection;
-static TrackInfo current_track;
-static bool playing;
+static DBusConnection* dbus_connection = NULL;
+static TrackInfo current_track = {0};
+static bool playing = false;
 
 static int decodeURIComponent (char *sSource, char *sDest) { // https://stackoverflow.com/a/20437049
+    assert(sSource != NULL);
+    assert(sDest != NULL);
     int nLength;
     for (nLength = 0; *sSource; nLength++) {
         if (*sSource == '%' && sSource[1] && sSource[2] && isxdigit(sSource[1]) && isxdigit(sSource[2])) {
@@ -38,19 +40,25 @@ static int decodeURIComponent (char *sSource, char *sDest) { // https://stackove
 #define implodeURIComponent(url) decodeURIComponent(url, url)
 
 static char* correct_art_url(const char* url) {
+    assert(url != NULL);
     static const char spotify_old[] = "https://open.spotify.com/image/";
     static const char spotify_new[] = "https://i.scdn.co/image/";
     static const char file_url[] = "file://";
+    size_t url_len = strlen(url);
     char* ret;
-    if (strncmp(spotify_old, url, sizeof(spotify_old) - 1) == 0) {
-        ret = malloc((1 + strlen(url) - (sizeof(spotify_old) - sizeof(spotify_new) - 2)) * sizeof(char));
+
+    if (url_len <= sizeof(file_url) - 1) {
+        ret = strdup(url);
         allocfail_return_null(ret);
-        sprintf(ret, "%s%s", spotify_new, url + sizeof(spotify_old) - 1);
+    } else if (strncmp(spotify_old, url, sizeof(spotify_old) - 1) == 0) {
+        ret = malloc((1 + url_len - (sizeof(spotify_old) - sizeof(spotify_new) - 2)) * sizeof(char));
+        allocfail_return_null(ret);
+        sprintf(ret, "%s%s", spotify_new, url + (sizeof(spotify_old) - 1));
     } else if (strncmp(file_url, url, sizeof(file_url) - 1) == 0) {
-        ret = malloc((1 + strlen(url) - sizeof(file_url) - 1) * sizeof(char));
+        ret = malloc((3 + url_len - sizeof(file_url) - 1) * sizeof(char));
         allocfail_return_null(ret);
-        sprintf(ret, "%s", url + sizeof(file_url) - 1);
-        implodeURIComponent(ret); //TODO: file url decode on windows
+        sprintf(ret, "%s", url + (sizeof(file_url) - 1));
+        implodeURIComponent(ret);
     } else {
         ret = strdup(url);
         allocfail_return_null(ret);
@@ -61,7 +69,7 @@ static char* correct_art_url(const char* url) {
 static bool update_data_if_diff(char** store, const char* new) {
     bool ret = false;
 
-    if (*store == NULL || strcmp(*store, new) != 0) {
+    if (*store == NULL || estrcmp(*store, new) != 0) {
         if (*store != NULL) free(*store);
         *store = strdup(new);
         allocfail_return_null(*store);

@@ -90,15 +90,20 @@ TrackInfoPlayer** track_info_get_players(int* ret_nb) {
 }
 
 static void track_info_dup(TrackInfo t, TrackInfo* ret) {
-    ret->album = strdup(t.album);
-    ret->artist = strdup(t.artist);
-    ret->title = strdup(t.title);
-    ret->album_art_url = strdup(t.album_art_url);
-    
+    ret->album = estrdup(t.album);
+    if (t.album != NULL) allocfail_print(ret->album);
+    ret->artist = estrdup(t.artist);
+    if (t.artist != NULL) allocfail_print(ret->artist);
+    ret->title = estrdup(t.title);
+    if (t.title != NULL) allocfail_print(ret->title);
+    ret->album_art_url = estrdup(t.album_art_url);
+    if (t.album_art_url != NULL) allocfail_print(ret->album_art_url);
+
     if (t.album_art != NULL) {
         int size = t.album_art_width * t.album_art_height * 4;
         assert(size % 4 == 0);
         ret->album_art = malloc(size * sizeof(uint8_t));
+        allocfail_return(ret->album_art);
         memcpy(ret->album_art, t.album_art, size);
         ret->album_art_width = t.album_art_width;
         ret->album_art_height = t.album_art_height;
@@ -127,15 +132,20 @@ void track_info_struct_init(TrackInfo* ti) {
 }
 
 void track_info_register_player(const char* name, const char* fancy_name){
+    assert(name != NULL);
+    assert(fancy_name != NULL);
     TrackInfoPerPlayer* track_info_per_player = malloc(sizeof(TrackInfoPerPlayer));
+
     allocfail_return(track_info_per_player);
     track_info_per_player->player.name = strdup(name);
     allocfail_return(track_info_per_player->player.name);
     track_info_per_player->player.fancy_name = strdup(fancy_name);
     allocfail_return(track_info_per_player->player.fancy_name);
     track_info_struct_init(&(track_info_per_player->track));
+
     track_info_per_player->playing = false;
     track_info_per_player->updated_once = false;
+
     list_prepend(&players, track_info_per_player, sizeof(TrackInfoPerPlayer));
 }
 
