@@ -423,5 +423,15 @@ void player_info_init() {
 }
 
 int player_info_process() {
-    return dbus_connection_read_write_dispatch(dbus_connection, 500);
+    DBusDispatchStatus remains;
+
+    do {
+        dbus_connection_read_write_dispatch(dbus_connection, 500);
+        remains = dbus_connection_get_dispatch_status(dbus_connection);
+        if (remains == DBUS_DISPATCH_NEED_MEMORY) {
+            log_warning("Need more memory to read dbus messages\n");
+        }
+    } while (remains != DBUS_DISPATCH_COMPLETE);
+
+    return 0;
 }
