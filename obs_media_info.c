@@ -163,7 +163,7 @@ static void update_source(obsmed_source* source) {
     if (! source->changed) return;
 
     if (current_track != NULL) {
-        if (current_track->album_art != NULL) { //TODO: refactor
+        if (current_track->album_art != NULL) { //TODO: refactor (add an image parsing library for linux)
             pthread_mutex_lock(source->texture_mutex);
             obs_enter_graphics();
             if (source->texture != NULL) gs_texture_destroy(source->texture);
@@ -175,33 +175,35 @@ static void update_source(obsmed_source* source) {
             if (source->texture == NULL) log_warning("error loading texture\n");
             obs_leave_graphics();
             pthread_mutex_unlock(source->texture_mutex);
-        } else if ((current_track->album_art_url == NULL) ? (source->last_track_url != NULL)
-                    : (source->last_track_url == NULL) || strcmp(source->last_track_url, current_track->album_art_url) != 0) {
+        } else if (current_track->album_art_url == NULL && source->last_track_url != NULL) {
             pthread_mutex_lock(source->texture_mutex);
             obs_enter_graphics();
             if (source->texture != NULL) gs_texture_destroy(source->texture);
+
+            source->texture = NULL;
+            obs_leave_graphics();
+            pthread_mutex_unlock(source->texture_mutex);
+
+            efree(source->last_track_url);
+            source->last_track_url = NULL;
+        } else if (current_track->album_art_url != NULL &&
+                   (source->last_track_url == NULL || strcmp(source->last_track_url, current_track->album_art_url) != 0)) {
+            pthread_mutex_lock(source->texture_mutex);
+            obs_enter_graphics();
+            if (source->texture != NULL) gs_texture_destroy(source->texture);
+
             //TODO: syncronise texture and text updating
+            source->texture_width = source->width;
+            source->texture_height = source->height;
+            source->texture = gs_texture_create_from_file(current_track->album_art_url); //TODO: texture from http only works with obs's ffmpeg backend not with imageMagic.
 
-            if (current_track->album_art_url != NULL) {
-                source->texture_width = source->width;
-                source->texture_height = source->height;
-                source->texture = gs_texture_create_from_file(current_track->album_art_url); //TODO: texture from http only works with obs's ffmpeg backend not with imageMagic.
+            if (source->texture == NULL) log_warning("error loading texture\n");
+            obs_leave_graphics();
+            pthread_mutex_unlock(source->texture_mutex);
 
-                if (source->texture == NULL) log_warning("error loading texture\n");
-                obs_leave_graphics();
-                pthread_mutex_unlock(source->texture_mutex);
-
-                efree(source->last_track_url);
-                source->last_track_url = strdup(current_track->album_art_url);
-                allocfail_print(source->last_track_url);
-            } else {
-                source->texture = NULL;
-                obs_leave_graphics();
-                pthread_mutex_unlock(source->texture_mutex);
-
-                efree(source->last_track_url);
-                source->last_track_url = NULL;
-            }
+            efree(source->last_track_url);
+            source->last_track_url = strdup(current_track->album_art_url);
+            allocfail_print(source->last_track_url);
         }
         char text[200];
         apply_template((char*)source->template, current_track, text, 199);
