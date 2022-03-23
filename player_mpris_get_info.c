@@ -15,16 +15,23 @@
 #define NB_PLAYER_MAX 10
 static const char MPRIS_NAME_START[] = "org.mpris.MediaPlayer2";
 
+struct current_track_extra_info {
+  char* track_url;
+};
+
 static DBusConnection* dbus_connection = NULL;
 static TrackInfo current_track = {0};
+static struct current_track_extra_info current_track_extra = {0};
 static bool playing = false;
 
 struct track_info_has_updates {
+  bool has_url;
   bool has_title;
   bool has_art_url;
   bool has_artist;
   bool has_album;
 };
+
 
 static int decodeURIComponent (char *sSource, char *sDest) { // https://stackoverflow.com/a/20437049
     assert(sSource != NULL);
@@ -147,6 +154,14 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret, struct
                     *updated_data_ret = true;
                 }
                 has_updates->has_album = true;
+            } else if (strcmp(property_name, "xesam:url") == 0) {
+                char* url;
+                dbus_message_iter_recurse(iter, &sub);
+                dbus_message_iter_get_basic(&sub, &url);
+                if (update_data_if_diff(&current_track_extra.track_url, url)) {
+                    *updated_data_ret = true;
+                }
+                has_updates->has_url = true;
             } else {
                 log_debug("ignored: %s\n", property_name);
             }
@@ -196,10 +211,19 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret) {
                 dbus_message_iter_recurse(&sub, &subsub);
                 parse_MetaData(&subsub, updated_data_ret, &has_updates);
 
-                if (! has_updates.has_title)   update_data_if_diff(&(current_track.title)        , NULL);
-                if (! has_updates.has_art_url) update_data_if_diff(&(current_track.album_art_url), NULL);
-                if (! has_updates.has_artist)  update_data_if_diff(&(current_track.artist)       , NULL);
-                if (! has_updates.has_album)   update_data_if_diff(&(current_track.album)        , NULL);
+                if (! has_updates.has_url)      update_data_if_diff(&(current_track_extra.track_url) , NULL);
+
+                if (! has_updates.has_title)    update_data_if_diff(&(current_track.title)                , NULL);
+                if (! has_updates.has_art_url)  update_data_if_diff(&(current_track.album_art_url)        , NULL);
+                if (! has_updates.has_artist)   update_data_if_diff(&(current_track.artist)               , NULL);
+                if (! has_updates.has_album)    update_data_if_diff(&(current_track.album)                , NULL);
+
+                if (! has_updates.has_title && has_updates.has_url) {
+                  char* name = strrchr(current_track_extra.track_url, '/');
+                  if (name != NULL && update_data_if_diff(&(current_track.title), name + 1)) {
+                    *updated_data_ret = true;
+                  }
+                }
             } else {
                 log_debug("not handled %s\n", property_name);
             }
