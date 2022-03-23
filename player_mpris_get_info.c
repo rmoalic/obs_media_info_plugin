@@ -173,7 +173,7 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret, struct
     }
 }
 
-static void parse_array(DBusMessageIter* iter, bool* updated_data_ret) {
+static void parse_array(DBusMessageIter* iter, bool* updated_data_ret, bool* updated_playing_state_ret) {
     int current_type;
     DBusMessageIter sub, subsub;
     const char* property_name = NULL;
@@ -183,7 +183,7 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret) {
         switch (current_type) {
         case DBUS_TYPE_DICT_ENTRY: {
             dbus_message_iter_recurse(iter, &sub);
-            parse_array(&sub, updated_data_ret);
+            parse_array(&sub, updated_data_ret, updated_playing_state_ret);
         } break;
         case DBUS_TYPE_STRING: {
             dbus_message_iter_get_basic(iter, &property_name);
@@ -204,6 +204,7 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret) {
                 } else {
                     playing = false;
                 }
+                *updated_playing_state_ret = true;
             } else if (strcmp(property_name, "Metadata") == 0) {
                 struct track_info_has_updates has_updates = {0};
 
@@ -213,15 +214,18 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret) {
 
                 if (! has_updates.has_url)      update_data_if_diff(&(current_track_extra.track_url) , NULL);
 
-                if (! has_updates.has_title)    update_data_if_diff(&(current_track.title)                , NULL);
                 if (! has_updates.has_art_url)  update_data_if_diff(&(current_track.album_art_url)        , NULL);
                 if (! has_updates.has_artist)   update_data_if_diff(&(current_track.artist)               , NULL);
                 if (! has_updates.has_album)    update_data_if_diff(&(current_track.album)                , NULL);
 
-                if (! has_updates.has_title && has_updates.has_url) {
-                  char* name = strrchr(current_track_extra.track_url, '/');
-                  if (name != NULL && update_data_if_diff(&(current_track.title), name + 1)) {
-                    *updated_data_ret = true;
+                if (! has_updates.has_title) {
+                  if (has_updates.has_url) {
+                    char* name = strrchr(current_track_extra.track_url, '/');
+                    if (name != NULL && update_data_if_diff(&(current_track.title), name + 1)) {
+                      *updated_data_ret = true;
+                    }
+                  } else {
+                    update_data_if_diff(&(current_track.title), NULL);
                   }
                 }
             } else {
@@ -240,7 +244,7 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
     DBusMessageIter iter, sub;
     int current_type;
     bool updated_data = false;
-    bool old_playing = playing;
+    bool updated_playing_state = false;
 
     dbus_error_init(&error);
 
@@ -264,7 +268,7 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
 
                 dbus_message_iter_recurse(&iter, &sub);
 
-                parse_array(&sub, &updated_data);
+                parse_array(&sub, &updated_data, &updated_playing_state);
             }
         } break;
         default:
@@ -275,10 +279,11 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
 
     if (updated_data) {
         track_info_register_track_change(player, current_track);
-        playing = true;
-        track_info_register_state_change(player, playing); // if a track changes, it is playing (vlc)
-    } else if (playing != old_playing) {
-        track_info_register_state_change(player, playing);
+        playing = true; // if a track changes, it is playing (vlc)
+        updated_playing_state = true;
+    }
+    if (updated_playing_state) {
+      track_info_register_state_change(player, playing);
     }
 
     #ifdef DEBUG
