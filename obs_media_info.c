@@ -184,11 +184,16 @@ static void update_source(obsmed_source* source) {
             if (source->texture != NULL) gs_texture_destroy(source->texture);
             //TODO: syncronise texture and text updating
 
-            source->texture_width = source->width;
-            source->texture_height = source->height;
             source->texture = gs_texture_create_from_file(current_track->album_art_url); //TODO: texture from http only works with obs's ffmpeg backend not with imageMagic.
 
-            if (source->texture == NULL) log_warning("error loading texture\n");
+            if (source->texture == NULL) {
+              log_warning("error loading texture\n");
+              source->texture_width = 0;
+              source->texture_height = 0;
+            } else {
+              source->texture_width = gs_texture_get_width(source->texture);
+              source->texture_height = gs_texture_get_height(source->texture);
+            }
             obs_leave_graphics();
             pthread_mutex_unlock(source->texture_mutex);
 
