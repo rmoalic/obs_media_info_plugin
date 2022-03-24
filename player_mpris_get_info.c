@@ -15,9 +15,23 @@
 #define NB_PLAYER_MAX 10
 static const char MPRIS_NAME_START[] = "org.mpris.MediaPlayer2";
 
+struct current_track_extra_info {
+  char* track_url;
+};
+
 static DBusConnection* dbus_connection = NULL;
 static TrackInfo current_track = {0};
+static struct current_track_extra_info current_track_extra = {0};
 static bool playing = false;
+
+struct track_info_has_updates {
+  bool has_url;
+  bool has_title;
+  bool has_art_url;
+  bool has_artist;
+  bool has_album;
+};
+
 
 static int decodeURIComponent (char *sSource, char *sDest) { // https://stackoverflow.com/a/20437049
     assert(sSource != NULL);
@@ -68,8 +82,13 @@ static char* correct_art_url(const char* url) {
 
 static bool update_data_if_diff(char** store, const char* new) {
     bool ret = false;
-
-    if (*store == NULL || estrcmp(*store, new) != 0) {
+    if (new == NULL) {
+        if (*store != NULL) {
+            free(*store);
+            *store = NULL;
+            ret = true;
+        }
+    } else if (*store == NULL || estrcmp(*store, new) != 0) {
         if (*store != NULL) free(*store);
         *store = strdup(new);
         allocfail_return_null(*store);
@@ -78,7 +97,7 @@ static bool update_data_if_diff(char** store, const char* new) {
     return ret;
 }
 
-static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret) {
+static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret, struct track_info_has_updates* has_updates) {
     int current_type;
     DBusMessageIter sub, subsub;
     const char* property_name = NULL;
@@ -88,7 +107,7 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret) {
         switch (current_type) {
         case DBUS_TYPE_DICT_ENTRY: {
             dbus_message_iter_recurse(iter, &sub);
-            parse_MetaData(&sub, updated_data_ret);
+            parse_MetaData(&sub, updated_data_ret, has_updates);
 
         } break;
         case DBUS_TYPE_STRING: {
@@ -107,6 +126,7 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret) {
                 if (update_data_if_diff(&(current_track.title), title)) {
                     *updated_data_ret = true;
                 }
+                has_updates->has_title = true;
             } else if (strcmp(property_name, "mpris:artUrl") == 0) {
                 char* url;
                 char* correct_url;
@@ -116,6 +136,7 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret) {
                 if (update_data_if_diff(&(current_track.album_art_url), correct_url)) {
                     *updated_data_ret = true;
                 }
+                has_updates->has_art_url = true;
             } else if (strcmp(property_name, "xesam:artist") == 0) {
                 char* artist;
                 dbus_message_iter_recurse(iter, &sub);
@@ -124,13 +145,23 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret) {
                 if (update_data_if_diff(&(current_track.artist), artist)) {
                     *updated_data_ret = true;
                 }
-            }else if (strcmp(property_name, "xesam:album") == 0) {
+                has_updates->has_artist = true;
+            } else if (strcmp(property_name, "xesam:album") == 0) {
                 char* album;
                 dbus_message_iter_recurse(iter, &sub);
                 dbus_message_iter_get_basic(&sub, &album);
                 if (update_data_if_diff(&(current_track.album), album)) {
                     *updated_data_ret = true;
                 }
+                has_updates->has_album = true;
+            } else if (strcmp(property_name, "xesam:url") == 0) {
+                char* url;
+                dbus_message_iter_recurse(iter, &sub);
+                dbus_message_iter_get_basic(&sub, &url);
+                if (update_data_if_diff(&current_track_extra.track_url, url)) {
+                    *updated_data_ret = true;
+                }
+                has_updates->has_url = true;
             } else {
                 log_debug("ignored: %s\n", property_name);
             }
@@ -140,10 +171,9 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret) {
         }
         dbus_message_iter_next(iter);
     }
-
 }
 
-static void parse_array(DBusMessageIter* iter, bool* updated_data_ret) {
+static void parse_array(DBusMessageIter* iter, bool* updated_data_ret, bool* updated_playing_state_ret) {
     int current_type;
     DBusMessageIter sub, subsub;
     const char* property_name = NULL;
@@ -153,7 +183,7 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret) {
         switch (current_type) {
         case DBUS_TYPE_DICT_ENTRY: {
             dbus_message_iter_recurse(iter, &sub);
-            parse_array(&sub, updated_data_ret);
+            parse_array(&sub, updated_data_ret, updated_playing_state_ret);
         } break;
         case DBUS_TYPE_STRING: {
             dbus_message_iter_get_basic(iter, &property_name);
@@ -174,10 +204,30 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret) {
                 } else {
                     playing = false;
                 }
+                *updated_playing_state_ret = true;
             } else if (strcmp(property_name, "Metadata") == 0) {
+                struct track_info_has_updates has_updates = {0};
+
                 dbus_message_iter_recurse(iter, &sub);
                 dbus_message_iter_recurse(&sub, &subsub);
-                parse_MetaData(&subsub, updated_data_ret);
+                parse_MetaData(&subsub, updated_data_ret, &has_updates);
+
+                if (! has_updates.has_url)      update_data_if_diff(&(current_track_extra.track_url) , NULL);
+
+                if (! has_updates.has_art_url)  update_data_if_diff(&(current_track.album_art_url)        , NULL);
+                if (! has_updates.has_artist)   update_data_if_diff(&(current_track.artist)               , NULL);
+                if (! has_updates.has_album)    update_data_if_diff(&(current_track.album)                , NULL);
+
+                if (! has_updates.has_title) {
+                  if (has_updates.has_url) {
+                    char* name = strrchr(current_track_extra.track_url, '/');
+                    if (name != NULL && update_data_if_diff(&(current_track.title), name + 1)) {
+                      *updated_data_ret = true;
+                    }
+                  } else {
+                    update_data_if_diff(&(current_track.title), NULL);
+                  }
+                }
             } else {
                 log_debug("not handled %s\n", property_name);
             }
@@ -194,7 +244,7 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
     DBusMessageIter iter, sub;
     int current_type;
     bool updated_data = false;
-    bool old_playing = playing;
+    bool updated_playing_state = false;
 
     dbus_error_init(&error);
 
@@ -218,7 +268,7 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
 
                 dbus_message_iter_recurse(&iter, &sub);
 
-                parse_array(&sub, &updated_data);
+                parse_array(&sub, &updated_data, &updated_playing_state);
             }
         } break;
         default:
@@ -229,10 +279,11 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
 
     if (updated_data) {
         track_info_register_track_change(player, current_track);
-        playing = true;
-        track_info_register_state_change(player, playing); // if a track changes, it is playing (vlc)
-    } else if (playing != old_playing) {
-        track_info_register_state_change(player, playing);
+        playing = true; // if a track changes, it is playing (vlc)
+        updated_playing_state = true;
+    }
+    if (updated_playing_state) {
+      track_info_register_state_change(player, playing);
     }
 
     #ifdef DEBUG
