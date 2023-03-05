@@ -55,20 +55,11 @@ static int decodeURIComponent (char *sSource, char *sDest) { // https://stackove
 
 static char* correct_art_url(const char* url) {
     assert(url != NULL);
-    static const char spotify_old[] = "https://open.spotify.com/image/";
-    static const char spotify_new[] = "https://i.scdn.co/image/";
     static const char file_url[] = "file://";
     size_t url_len = strlen(url);
     char* ret;
 
-    if (url_len <= sizeof(file_url) - 1) {
-        ret = strdup(url);
-        allocfail_return_null(ret);
-    } else if (strncmp(spotify_old, url, sizeof(spotify_old) - 1) == 0) {
-        ret = malloc((1 + url_len - (sizeof(spotify_old) - sizeof(spotify_new) - 2)) * sizeof(char));
-        allocfail_return_null(ret);
-        sprintf(ret, "%s%s", spotify_new, url + (sizeof(spotify_old) - 1));
-    } else if (strncmp(file_url, url, sizeof(file_url) - 1) == 0) {
+    if (strncmp(file_url, url, sizeof(file_url) - 1) == 0) {
         ret = malloc((3 + url_len - sizeof(file_url) - 1) * sizeof(char));
         allocfail_return_null(ret);
         sprintf(ret, "%s", url + (sizeof(file_url) - 1));
