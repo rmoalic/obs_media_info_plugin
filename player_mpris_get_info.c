@@ -97,6 +97,22 @@ static bool update_data_if_diff(char** store, const char* new) {
     return ret;
 }
 
+static bool skip_if_wrong_type(DBusMessageIter* iter_go_next, DBusMessageIter* curr, int dbus_type, const char* property_name) {
+    bool ret = false;
+    int type = dbus_message_iter_get_arg_type(curr);
+
+    if (type != dbus_type) {
+        if (property_name != NULL) {
+            log_error("Error: Encontered wrong type for %s (%c, expecting %c)\n", property_name, type, dbus_type);
+        } else {
+            log_error("Error: Encontered wrong type (%c, expecting %c)\n", type, dbus_type);
+        }
+        dbus_message_iter_next(iter_go_next);
+        ret = true;
+    }
+    return ret;
+}
+
 static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret, struct track_info_has_updates* has_updates) {
     int current_type;
     DBusMessageIter sub, subsub;
@@ -122,6 +138,7 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret, struct
             if (strcmp(property_name, "xesam:title") == 0) {
                 char* title;
                 dbus_message_iter_recurse(iter, &sub);
+                if (skip_if_wrong_type(iter, &sub, DBUS_TYPE_STRING, property_name)) continue;
                 dbus_message_iter_get_basic(&sub, &title);
                 if (update_data_if_diff(&(current_track.title), title)) {
                     *updated_data_ret = true;
@@ -131,6 +148,7 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret, struct
                 char* url;
                 char* correct_url;
                 dbus_message_iter_recurse(iter, &sub);
+                if (skip_if_wrong_type(iter, &sub, DBUS_TYPE_STRING, property_name)) continue;
                 dbus_message_iter_get_basic(&sub, &url);
                 correct_url = correct_art_url(url);
                 if (update_data_if_diff(&(current_track.album_art_url), correct_url)) {
@@ -140,8 +158,19 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret, struct
             } else if (strcmp(property_name, "xesam:artist") == 0) {
                 char* artist;
                 dbus_message_iter_recurse(iter, &sub);
-                dbus_message_iter_recurse(&sub, &subsub);
-                dbus_message_iter_get_basic(&subsub, &artist);
+
+                switch (dbus_message_iter_get_arg_type(&sub)) {
+                case DBUS_TYPE_ARRAY: {
+                    dbus_message_iter_recurse(&sub, &subsub);
+                    if (skip_if_wrong_type(iter, &subsub, DBUS_TYPE_STRING, property_name)) continue;
+                    dbus_message_iter_get_basic(&subsub, &artist);
+                } break;
+                case DBUS_TYPE_STRING: {
+                    dbus_message_iter_get_basic(&sub, &artist);
+                } break;
+                default:
+                  if (skip_if_wrong_type(iter, &sub, DBUS_TYPE_STRING, property_name)) continue;
+                }
                 if (update_data_if_diff(&(current_track.artist), artist)) {
                     *updated_data_ret = true;
                 }
@@ -149,6 +178,7 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret, struct
             } else if (strcmp(property_name, "xesam:album") == 0) {
                 char* album;
                 dbus_message_iter_recurse(iter, &sub);
+                if (skip_if_wrong_type(iter, &sub, DBUS_TYPE_STRING, property_name)) continue;
                 dbus_message_iter_get_basic(&sub, &album);
                 if (update_data_if_diff(&(current_track.album), album)) {
                     *updated_data_ret = true;
@@ -157,6 +187,7 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret, struct
             } else if (strcmp(property_name, "xesam:url") == 0) {
                 char* url;
                 dbus_message_iter_recurse(iter, &sub);
+                if (skip_if_wrong_type(iter, &sub, DBUS_TYPE_STRING, property_name)) continue;
                 dbus_message_iter_get_basic(&sub, &url);
                 if (update_data_if_diff(&current_track_extra.track_url, url)) {
                     *updated_data_ret = true;
@@ -197,6 +228,7 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret, bool* upd
             if (strcmp(property_name, "PlaybackStatus") == 0) {
                 char* status;
                 dbus_message_iter_recurse(iter, &sub);
+                if (skip_if_wrong_type(iter, &sub, DBUS_TYPE_STRING, property_name)) continue;
                 dbus_message_iter_get_basic(&sub, &status);
                 log_debug("Status: %s\n", status);
                 if (strcmp(status, "Playing") == 0) {
@@ -209,6 +241,7 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret, bool* upd
                 struct track_info_has_updates has_updates = {0};
 
                 dbus_message_iter_recurse(iter, &sub);
+                if (skip_if_wrong_type(iter, &sub, DBUS_TYPE_ARRAY, property_name)) continue;
                 dbus_message_iter_recurse(&sub, &subsub);
                 parse_MetaData(&subsub, updated_data_ret, &has_updates);
 
