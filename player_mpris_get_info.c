@@ -269,10 +269,11 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
     int current_type;
     bool updated_data = false;
     bool updated_playing_state = false;
+    bool initialisation_from_query = false;
 
     dbus_error_init(&error);
 
-    const char* property_name;
+    const char* property_name = NULL;
     const char* player = dbus_message_get_sender(message);
     log_debug("\n\nreceived message from %s\n", player);
 
@@ -286,10 +287,15 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
             log_debug("%s\n", property_name);
         } break;
         case DBUS_TYPE_ARRAY: {
-            if (strcmp(property_name, "org.mpris.MediaPlayer2.Player") == 0) {
+            if (property_name != NULL && strcmp(property_name, "org.mpris.MediaPlayer2.Player") == 0) { // message comes from signal handler
                 int c = dbus_message_iter_get_element_count(&iter);
                 if (c == 0) break; // if empty array, skip
 
+                dbus_message_iter_recurse(&iter, &sub);
+
+                parse_array(&sub, &updated_data, &updated_playing_state);
+            } else if (dbus_message_get_type(message) == DBUS_MESSAGE_TYPE_METHOD_RETURN) { // message comes from  mydbus_query_players
+                initialisation_from_query = true;
                 dbus_message_iter_recurse(&iter, &sub);
 
                 parse_array(&sub, &updated_data, &updated_playing_state);
@@ -303,8 +309,10 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
 
     if (updated_data) {
         track_info_register_track_change(player, current_track);
-        playing = true; // if a track changes, it is playing (vlc)
-        updated_playing_state = true;
+        if (! initialisation_from_query) {
+          playing = true; // if a track changes, it is playing (vlc)
+          updated_playing_state = true;
+        }
     }
     if (updated_playing_state) {
       track_info_register_state_change(player, playing);
@@ -407,6 +415,32 @@ static char* mydbus_get_name_owner(DBusConnection* dbus, const char* name) {
     return ret;
 }
 
+static void mydbus_query_players(DBusConnection* dbus, char* player_dbus_name) {
+    DBusMessage* msg;
+    DBusMessageIter imsg;
+    DBusPendingCall* resp_pending = NULL;
+    const char* interface = "org.mpris.MediaPlayer2.Player";
+
+    msg = dbus_message_new_method_call(player_dbus_name, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties", "GetAll");
+    dbus_message_iter_init_append(msg, &imsg);
+    dbus_message_iter_append_basic(&imsg, DBUS_TYPE_STRING, &interface);
+
+    if (! dbus_connection_send_with_reply(dbus, msg, &resp_pending, -1)) {
+        log_error("Out Of Memory!\n");
+    }
+
+    dbus_pending_call_block(resp_pending); //TODO: remove blocking call
+    if (dbus_pending_call_get_completed(resp_pending)) {
+        DBusMessage* resp;
+        resp = dbus_pending_call_steal_reply(resp_pending);
+
+        my_message_handler_mpris(dbus, resp, NULL);
+
+        dbus_message_unref(resp);
+    }
+    dbus_message_unref(msg);
+}
+
 static void mydbus_register_names(DBusConnection* dbus)
 {
     DBusMessage* msg;
@@ -436,6 +470,7 @@ static void mydbus_register_names(DBusConnection* dbus)
                     if (strncmp(MPRIS_NAME_START, name, sizeof(MPRIS_NAME_START) - 1) == 0) { // if mpris name
                         char* unique_name = mydbus_get_name_owner(dbus, name);
                         track_info_register_player(unique_name, name);
+                        mydbus_query_players(dbus, unique_name);
                         free(unique_name);
                     }
                 }
