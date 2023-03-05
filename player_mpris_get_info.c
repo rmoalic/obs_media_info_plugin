@@ -458,16 +458,15 @@ static DBusConnection* mydbus_init_session()
     if (dbus_error_is_set(&error)) {
         log_error("Error getting Bus: %s\n", error.message);
         dbus_error_free(&error);
+        return NULL;
     }
     if (cbus == NULL) {
         log_error("Error getting Bus: cbus is null\n");
+        return NULL;
     }
 
-    /*dbus_bus_request_name(cbus, "fr.polms.obs_get_mpris_info", DBUS_NAME_FLAG_REPLACE_EXISTING, &error);
-    if (dbus_error_is_set(&error)) {
-        fprintf(stderr, "Error while claiming name (%s)\n", error.message);
-        dbus_error_free(&error);
-        }*/
+    dbus_connection_set_exit_on_disconnect(cbus, false);
+
     log_info("My dbus name is %s\n", dbus_bus_get_unique_name(cbus));
 
     return cbus;
@@ -498,6 +497,9 @@ static void mydbus_add_matches(DBusConnection* dbus) {
 void player_info_init() {
     log_info("Initialising");
     dbus_connection = mydbus_init_session();
+    if (dbus_connection == NULL) {
+      return;
+    }
 
     mydbus_add_matches(dbus_connection);
     track_info_init();
@@ -507,6 +509,10 @@ void player_info_init() {
 
 int player_info_process() {
     DBusDispatchStatus remains;
+
+    if (dbus_connection == NULL) {
+      return 0;
+    }
 
     do {
         dbus_connection_read_write_dispatch(dbus_connection, 500);
