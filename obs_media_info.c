@@ -427,8 +427,10 @@ static void obsmed_video_render(void *data, gs_effect_t *effect) {
          if (d->texture != NULL) {
             int x, y;
             uint32_t cx, cy;
-            center_texture_on_container(d->width, d->height, d->texture_width, d->texture_height, &x, &y, &cx, &cy);
-            obs_source_draw(d->texture, x, y, cx, cy, false);
+            if (d->texture_width > 0 && d->texture_height > 0) {
+                center_texture_on_container(d->width, d->height, d->texture_width, d->texture_height, &x, &y, &cx, &cy);
+                obs_source_draw(d->texture, x, y, cx, cy, false);
+            }
          }
          pthread_mutex_unlock(d->texture_mutex);
      }
