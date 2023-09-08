@@ -32,6 +32,7 @@ struct track_info_has_updates {
   bool has_album;
 };
 
+static bool mydbus_query_players_playback_status(DBusConnection* dbus, const char* player_dbus_name);
 
 static int decodeURIComponent (char *sSource, char *sDest) { // https://stackoverflow.com/a/20437049
     assert(sSource != NULL);
@@ -309,8 +310,8 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
 
     if (updated_data) {
         track_info_register_track_change(player, current_track);
-        if (! initialisation_from_query) {
-          playing = true; // if a track changes, it is playing (vlc)
+        if (! initialisation_from_query && ! updated_playing_state) { // if a track changes, some player don't update playback status
+          playing = mydbus_query_players_playback_status(connection, player);
           updated_playing_state = true;
         }
     }
@@ -413,6 +414,52 @@ static char* mydbus_get_name_owner(DBusConnection* dbus, const char* name) {
     }
     dbus_message_unref(msg);
     return ret;
+}
+
+static bool mydbus_query_players_playback_status(DBusConnection* dbus, const char* player_dbus_name) {
+    DBusMessage* msg;
+    DBusMessageIter imsg;
+    DBusPendingCall* resp_pending = NULL;
+    bool ret_playing = false;
+    const char* interface = "org.mpris.MediaPlayer2.Player";
+    const char* property = "PlaybackStatus";
+
+    msg = dbus_message_new_method_call(player_dbus_name, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties", "Get");
+    dbus_message_iter_init_append(msg, &imsg);
+    dbus_message_iter_append_basic(&imsg, DBUS_TYPE_STRING, &interface);
+    dbus_message_iter_append_basic(&imsg, DBUS_TYPE_STRING, &property);
+
+    if (! dbus_connection_send_with_reply(dbus, msg, &resp_pending, -1)) {
+        log_error("Out Of Memory!\n");
+    }
+
+    dbus_pending_call_block(resp_pending); //TODO: remove blocking call
+    if (dbus_pending_call_get_completed(resp_pending)) {
+        DBusMessage* resp;
+        DBusMessageIter sub, subsub;
+        char* playback_status;
+        resp = dbus_pending_call_steal_reply(resp_pending);
+
+        dbus_message_iter_init(resp, &sub);
+        if (dbus_message_iter_get_arg_type(&sub) == DBUS_TYPE_VARIANT) {
+            dbus_message_iter_recurse(&sub, &subsub);
+            if (! skip_if_wrong_type(&sub, &subsub, DBUS_TYPE_STRING, "PlayerStatus *Query*")) {
+                dbus_message_iter_get_basic(&subsub, &playback_status);
+
+                if (strcmp(playback_status, "Playing") == 0) {
+                    ret_playing = true;
+                } else {
+                    ret_playing = false;
+                }
+            }
+        } else {
+            log_error("type error in PlayerStatus *Query*");
+        }
+
+        dbus_message_unref(resp);
+    }
+    dbus_message_unref(msg);
+    return ret_playing;
 }
 
 static void mydbus_query_players(DBusConnection* dbus, char* player_dbus_name) {
