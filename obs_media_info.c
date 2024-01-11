@@ -266,6 +266,10 @@ static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
 
     //config
     data->selected_player = obs_data_get_string(settings, SETTING_SELECTED_PLAYER);
+    char* instance_nb = strstr(data->selected_player, ".instance"); // Instances of players have a random id, not usefull across reboot
+    if (instance_nb != NULL) {
+        *instance_nb = '\0';
+    }
     data->fallback_if_selected_player_not_running = obs_data_get_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER);
     data->blackout_if_not_playing = obs_data_get_bool(settings, SETTING_BLACKOUT_IF_NOT_PLAYING);
     data->template = obs_data_get_string(settings, SETTING_TEMPLATE);
@@ -375,7 +379,6 @@ static obs_properties_t* obsmed_get_properties(void *data)
     TrackInfoPlayer** players = track_info_get_players(&nb_players);
     if (players != NULL) {
         for (int i = 0; i < nb_players; i++) {
-            if (strstr(players[i]->fancy_name, "instance") != NULL) continue; // don't include instances of player. Their id is random
             obs_property_list_add_string(p, players[i]->fancy_name, players[i]->fancy_name);
         }
         efree(players);

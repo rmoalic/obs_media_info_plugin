@@ -54,8 +54,10 @@ $ apt install libdbus-1-dev libobs-dev
 Place the `obs_media_plugin.so` in the obs plugins directory.
 
 ``` shell
-% mkdir -p /home/$HOME/.config/obs-studio/plugins/obs_media_info/bin/64bit
-% cp obs_media_plugin.so /home/$HOME/.config/obs-studio/plugins/obs_media_info/bin/64bit/
+% mkdir -p $HOME/.config/obs-studio/plugins/obs_media_info/bin/64bit
+% cp obs_media_plugin.so $HOME/.config/obs-studio/plugins/obs_media_info/bin/64bit/
+or
+% ln -s "$(pwd)/obs_media_info.so" $HOME/.config/obs-studio/plugins/obs_media_info/bin/64bit/obs_media_info.so
 ```
 
 Or in the systemwide directory `/usr/share/obs/obs-plugins/` (distribution dependant. Archlinux: `/usr/lib/obs-plugins/`).
