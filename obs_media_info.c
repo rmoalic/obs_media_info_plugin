@@ -9,6 +9,7 @@
 #include <util/threading.h>
 #include <graphics/graphics.h>
 // END OBS
+#include "obs_group.h"
 #include "player_info_get.h"
 #include "track_info.h"
 #include "utils.h"
@@ -22,12 +23,15 @@
 #define SETTING_NO_SELECTED_PLAYER "None"
 #define SETTING_FALLBACK_SELECTED_PLAYER "FALLBACK_SELECTED_PLAYER"
 #define SETTING_BLACKOUT_IF_NOT_PLAYING "BLACKOUT_NOT_PLAYING"
+#define SETTING_TOGGLE_GROUP "TOGGLE_GROUP"
+#define SETTING_TOGGLE_GROUP_VISIBLE_TIME "TOGGLE_GROUP_VISIBLE_TIME"
 #define SETTING_TEMPLATE "TEXT_TEMPLATE"
 #define SETTING_TEMPLATE_DEFAULT "\"%title%\" - %artist%\n\
 from %album%"
 #define SETTING_TEXT_FIELD "TEXT_FIELD"
 
 typedef struct source {
+    obs_source_t* source;
     uint32_t width;
     uint32_t height;
     pthread_mutex_t* texture_mutex;
@@ -39,6 +43,8 @@ typedef struct source {
     const char* selected_player;
     bool fallback_if_selected_player_not_running;
     bool blackout_if_not_playing;
+    bool toggle_group;
+    int toggle_group_visible_time;
     const char* template;
     const char* text_field;
 
@@ -47,6 +53,9 @@ typedef struct source {
     time_t last_update_time;
     TrackInfo* last_track;
     bool changed;
+
+    // timer
+    uint64_t toggle_group_disable;
 } obsmed_source;
 
 
@@ -156,6 +165,20 @@ static TrackInfo* update_get_current_track(obsmed_source* source) {
     return current_track;
 }
 
+static void set_group_visibility(obsmed_source* source, bool visibility) {
+    if (! source->toggle_group) return;
+
+    obs_sceneitem_t* group_sceneitem = source_get_group_sceneitem(source->source);
+    if (group_sceneitem != NULL) {
+        obs_sceneitem_set_visible(group_sceneitem, visibility);
+        obs_sceneitem_release(group_sceneitem);
+        if (visibility) {
+            uint64_t visible_for = (uint64_t) source->toggle_group_visible_time * 1000000;
+            source->toggle_group_disable = os_gettime_ns() + visible_for;
+        }
+    }
+}
+
 static void update_source(obsmed_source* source) {
     TrackInfo* current_track = update_get_current_track(source);
 
@@ -213,6 +236,7 @@ static void update_source(obsmed_source* source) {
         char text[200];
         apply_template((char*)source->template, current_track, text, 199);
         update_obs_text_source((char*)source->text_field, text);
+        set_group_visibility(source, true);
     } else {
         if (source->blackout_if_not_playing) {
             // remove texture
@@ -264,6 +288,8 @@ static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     obsmed_source* data = bmalloc(sizeof(obsmed_source));
     allocfail_exit(data);
 
+    data->source = source;
+
     //config
     data->selected_player = obs_data_get_string(settings, SETTING_SELECTED_PLAYER);
     char* instance_nb = strstr(data->selected_player, ".instance"); // Instances of players have a random id, not usefull across reboot
@@ -272,8 +298,11 @@ static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     }
     data->fallback_if_selected_player_not_running = obs_data_get_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER);
     data->blackout_if_not_playing = obs_data_get_bool(settings, SETTING_BLACKOUT_IF_NOT_PLAYING);
+    data->toggle_group = obs_data_get_bool(settings, SETTING_TOGGLE_GROUP);
+    data->toggle_group_visible_time = obs_data_get_int(settings, SETTING_TOGGLE_GROUP_VISIBLE_TIME);
     data->template = obs_data_get_string(settings, SETTING_TEMPLATE);
     data->text_field = obs_data_get_string(settings, SETTING_TEXT_FIELD);
+
     //endconfig
 
     data->width = 300;
@@ -300,6 +329,10 @@ static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     data->last_track = NULL;
     data->changed = false;
     //endthread
+
+    //timer
+    data->toggle_group_disable = 1;
+    //endtimer
 
     list_prepend(&sources, data, sizeof(obsmed_source));
     pthread_mutex_unlock(sources_mutex);
@@ -335,24 +368,28 @@ static uint32_t obsmed_get_height(void* data) {
     return d->height;
 }
 
-
 static void obsmed_update(void *data, obs_data_t *settings) {
     obsmed_source* d = data;
 
     d->selected_player = obs_data_get_string(settings, SETTING_SELECTED_PLAYER);
     d->fallback_if_selected_player_not_running = obs_data_get_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER);
     d->blackout_if_not_playing = obs_data_get_bool(settings, SETTING_BLACKOUT_IF_NOT_PLAYING);
+    d->toggle_group = obs_data_get_bool(settings, SETTING_TOGGLE_GROUP);
+    d->toggle_group_visible_time = obs_data_get_int(settings, SETTING_TOGGLE_GROUP_VISIBLE_TIME);
     d->template = obs_data_get_string(settings, SETTING_TEMPLATE);
     d->text_field = obs_data_get_string(settings, SETTING_TEXT_FIELD);
 
     log_debug("track changed: plugin settings update\n");
     d->changed = true;
 }
+
 static void obsmed_get_defaults(obs_data_t *settings)
 {
     obs_data_set_default_string(settings, SETTING_SELECTED_PLAYER, SETTING_NO_SELECTED_PLAYER);
     obs_data_set_default_bool(settings, SETTING_FALLBACK_SELECTED_PLAYER, false);
     obs_data_set_default_bool(settings, SETTING_BLACKOUT_IF_NOT_PLAYING, false);
+    obs_data_set_default_bool(settings, SETTING_TOGGLE_GROUP, false);
+    obs_data_set_default_int(settings, SETTING_TOGGLE_GROUP_VISIBLE_TIME, 5000);
     obs_data_set_default_string(settings, SETTING_TEMPLATE, SETTING_TEMPLATE_DEFAULT);
     obs_data_set_default_string(settings, SETTING_TEXT_FIELD, "");
 }
@@ -388,6 +425,11 @@ static obs_properties_t* obsmed_get_properties(void *data)
 
     obs_properties_add_bool(props, SETTING_BLACKOUT_IF_NOT_PLAYING, obs_module_text("Blackout if no player is playing"));
 
+    obs_properties_t *props_toggle = obs_properties_create();
+    obs_properties_add_int(props_toggle, SETTING_TOGGLE_GROUP_VISIBLE_TIME, obs_module_text("Time the group is visible for (ms)"), 10, INT_MAX, 1);
+
+    obs_properties_add_group(props, SETTING_TOGGLE_GROUP,  obs_module_text("Toggle the containing group visibility on track change"), OBS_GROUP_CHECKABLE, props_toggle);
+
     p = obs_properties_add_list(props, SETTING_TEXT_FIELD, obs_module_text("Text source name"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
     obs_property_list_add_string(p, "", "");
     obs_enum_sources(add_sources_from_text_plugins, p);
@@ -403,7 +445,7 @@ static void center_texture_on_container(uint32_t container_width, uint32_t conta
     double tcy = (double) texture_height * ((double) container_height / ((double) texture_height));
     double texture_ratio = texture_width / (texture_height * 1.0);
     if (texture_ratio < 1.0) {
-        tcx *= texture_ratio;        
+        tcx *= texture_ratio;
     } else {
         tcy /= texture_ratio;
     }
@@ -423,8 +465,20 @@ static void center_texture_on_container(uint32_t container_width, uint32_t conta
     }
 }
 
+static void timer_update(obsmed_source* data) {
+    if (data->toggle_group_disable != 0) {
+        uint64_t time = os_gettime_ns();
+
+        if (data->toggle_group_disable < time) {
+            set_group_visibility(data, false);
+            data->toggle_group_disable = 0;
+        }
+    }
+}
+
 static void obsmed_video_render(void *data, gs_effect_t *effect) {
      obsmed_source* d = data;
+     timer_update(d);
 
      if (pthread_mutex_trylock(d->texture_mutex) == 0) {
          if (d->texture != NULL) {
