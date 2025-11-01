@@ -8,7 +8,7 @@ set LIBS=obs.lib w32-pthreads.lib
 del *.obj
 
 cl.exe %CXXFLAGS% %INCLUDES% /c player_windows_uwp_get_info.cpp
-cl.exe %CFLAGS% %INCLUDES% /c list.c obs_media_info.c track_info.c
+cl.exe %CFLAGS% %INCLUDES% /c list.c obs_media_info.c track_info.c obs_group.c
 
-link.exe /DEBUG:FULL %LIBS% list.obj obs_media_info.obj track_info.obj player_windows_uwp_get_info.obj /DLL /OUT:obs_media_info.dll
+link.exe /DEBUG:FULL %LIBS% list.obj obs_media_info.obj track_info.obj obs_group.obj player_windows_uwp_get_info.obj /DLL /OUT:obs_media_info.dll
 
