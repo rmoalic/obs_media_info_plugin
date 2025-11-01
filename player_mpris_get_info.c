@@ -606,3 +606,7 @@ int player_info_process() {
 
     return 0;
 }
+
+void player_info_close() {
+
+}
