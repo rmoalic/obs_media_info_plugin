@@ -533,6 +533,7 @@ bool obs_module_load(void)
 
 void obs_module_unload(void)
 {
+    player_info_close();
     pthread_mutex_destroy(sources_mutex);
     bfree(sources_mutex);
 }

@@ -29,13 +29,17 @@ using namespace std;
 void update_players_registration();
 
 static GlobalSystemMediaTransportControlsSessionManager session_manager { nullptr };
+winrt::event_token session_manager_change_token;
+
 vector<string> registered_players;
+vector<GlobalSystemMediaTransportControlsSession::MediaPropertiesChanged_revoker> session_revoker_media_properties_changed;
+vector<GlobalSystemMediaTransportControlsSession::PlaybackInfoChanged_revoker> session_revoker_playback_ingo_changed;
 
 static void handle_session_change(GlobalSystemMediaTransportControlsSessionManager session_manager_l, SessionsChangedEventArgs  const& args) {
     update_players_registration();
 }
 
-static void handle_media_property_change(GlobalSystemMediaTransportControlsSession session, MediaPropertiesChangedEventArgs const& arg) {
+static winrt::fire_and_forget handle_media_property_change(GlobalSystemMediaTransportControlsSession session, MediaPropertiesChangedEventArgs const& arg) {
     TrackInfo current_track;
     track_info_struct_init(&current_track);
     bool playing;
@@ -46,7 +50,7 @@ static void handle_media_property_change(GlobalSystemMediaTransportControlsSessi
     std::string player_t = winrt::to_string(t);
     const char* player = player_t.c_str();
 
-    media_properties = session.TryGetMediaPropertiesAsync().get();
+    media_properties = co_await session.TryGetMediaPropertiesAsync();
 
     if (media_properties == nullptr) return;
 
@@ -66,8 +70,8 @@ static void handle_media_property_change(GlobalSystemMediaTransportControlsSessi
     com_array<uint8_t> pixel_data_detached;
     uint8_t* data = NULL;
     if (thumbnail != nullptr) {
-        auto stream = thumbnail.OpenReadAsync().get();
-        auto decoder = BitmapDecoder::CreateAsync(stream).get();
+        auto stream = co_await thumbnail.OpenReadAsync();
+        auto decoder = co_await BitmapDecoder::CreateAsync(stream);
         auto transform = BitmapTransform();
         uint32_t width, height;
         
@@ -90,11 +94,11 @@ static void handle_media_property_change(GlobalSystemMediaTransportControlsSessi
             height = decoder.PixelHeight();
         }
 
-        auto pixel_data = decoder.GetPixelDataAsync(BitmapPixelFormat::Rgba8, 
+        auto pixel_data = co_await decoder.GetPixelDataAsync(BitmapPixelFormat::Rgba8, 
                                                       BitmapAlphaMode::Premultiplied,
                                                       transform,
                                                       ExifOrientationMode::IgnoreExifOrientation,
-                                                      ColorManagementMode::ColorManageToSRgb).get();
+                                                      ColorManagementMode::ColorManageToSRgb);
         pixel_data_detached = pixel_data.DetachPixelData();
         data = (uint8_t*) pixel_data_detached.data();
 
@@ -138,8 +142,11 @@ void update_players_registration() {
         
         players_seen.push_back(s);
         if (find(registered_players.begin(), registered_players.end(), s) == registered_players.end()) { // not found
-            session.MediaPropertiesChanged(handle_media_property_change);
-            session.PlaybackInfoChanged(handle_media_playback_info_change);
+            auto sr1 = session.MediaPropertiesChanged(winrt::auto_revoke, handle_media_property_change);
+            auto sr2 = session.PlaybackInfoChanged(winrt::auto_revoke, handle_media_playback_info_change);
+
+            session_revoker_media_properties_changed.push_back(std::move(sr1));
+            session_revoker_playback_ingo_changed.push_back(std::move(sr2));
 
             registered_players.push_back(s);
             track_info_register_player(s.c_str(), s.c_str());
@@ -163,17 +170,29 @@ extern "C" void player_info_init() {
     log_info("Initialising");
     track_info_init();
 
+    winrt::init_apartment();
+
     try {
         session_manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync().get();
     } catch (...) {
         log_error("an error occured while getting the GlobalSystemMediaTransportControlsSessionManager");
         return;
     }
-    session_manager.SessionsChanged(handle_session_change);
+    session_manager_change_token = session_manager.SessionsChanged(handle_session_change);
 
     update_players_registration();
 }
 
 extern "C" int player_info_process() {
     return 0;
+}
+
+extern "C" void player_info_close() {
+    session_revoker_media_properties_changed.clear();
+    session_revoker_playback_ingo_changed.clear();
+    session_manager.SessionsChanged(session_manager_change_token);
+    session_manager_change_token = {};
+    session_manager = nullptr;
+
+    winrt::uninit_apartment();
 }
