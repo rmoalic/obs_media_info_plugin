@@ -103,6 +103,7 @@ static winrt::fire_and_forget handle_media_property_change(GlobalSystemMediaTran
         data = (uint8_t*) pixel_data_detached.data();
 
         current_track.album_art = data;
+        current_track.album_art_size = width * height * 4;
         current_track.album_art_width = width;
         current_track.album_art_height = height;
     }

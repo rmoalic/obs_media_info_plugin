@@ -94,7 +94,7 @@ struct DecodedImage* load_image_ffmpeg(const char* url)
         if (avcodec_receive_frame(dec_ctx, frame) == 0) {
 
             image = malloc(sizeof(struct DecodedImage));
-            allocfail_exit(image);
+            allocfail_return_null(image);
 
             image->width  = frame->width;
             image->height = frame->height;
@@ -112,10 +112,10 @@ struct DecodedImage* load_image_ffmpeg(const char* url)
             }
 
             image->data = malloc(buffer_size);
-            allocfail_exit(image->data);
+            allocfail_return_null(image->data);
 
-            uint8_t* dest_data[4];
-            int dest_linesize[4];
+            uint8_t* dest_data[4] = {image->data, NULL, NULL, NULL};
+            int dest_linesize[4] = {frame->width * 4, 0, 0, 0};
 
             if (av_image_fill_arrays(
                     dest_data,

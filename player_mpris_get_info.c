@@ -152,6 +152,7 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret, struct
                 free(correct_url);
                 if (decoded_image != NULL) {
                   current_track.album_art = decoded_image->data;
+                  current_track.album_art_size = decoded_image->linesize * decoded_image->height;
                   current_track.album_art_height = decoded_image->height;
                   current_track.album_art_width = decoded_image->width;
 

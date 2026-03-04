@@ -103,11 +103,9 @@ static void track_info_dup(TrackInfo t, TrackInfo* ret) {
     if (t.title != NULL) allocfail_print(ret->title);
 
     if (t.album_art != NULL) {
-        int size = t.album_art_width * t.album_art_height * 4;
-        assert(size % 4 == 0);
-        ret->album_art = malloc(size * sizeof(uint8_t));
+        ret->album_art = malloc(t.album_art_size * sizeof(uint8_t));
         allocfail_return(ret->album_art);
-        memcpy(ret->album_art, t.album_art, size);
+        memcpy(ret->album_art, t.album_art, t.album_art_size);
         ret->album_art_width = t.album_art_width;
         ret->album_art_height = t.album_art_height;
     }
@@ -127,6 +125,7 @@ void track_info_struct_init(TrackInfo* ti) {
     ti->album = NULL;
     ti->title = NULL;
     ti->album_art = NULL;
+    ti->album_art_size = 0;
     ti->album_art_width = 0;
     ti->album_art_height = 0;
     ti->update_time = 0;

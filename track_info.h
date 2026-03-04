@@ -1,3 +1,4 @@
+#include <stddef.h>
 #ifndef TRACK_INFO_H
 #define TRACK_INFO_H 1
 
@@ -19,6 +20,7 @@ typedef struct track_info {
     char* artist;
     char* album;
     uint8_t* album_art;
+    size_t album_art_size;
     uint32_t album_art_width;
     uint32_t album_art_height;
     time_t update_time;
