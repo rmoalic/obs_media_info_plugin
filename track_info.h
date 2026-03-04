@@ -18,10 +18,9 @@ typedef struct track_info {
     char* title;
     char* artist;
     char* album;
-    char* album_art_url;
-	uint8_t* album_art;
-	uint32_t  album_art_width;
-	uint32_t  album_art_height;
+    uint8_t* album_art;
+    uint32_t album_art_width;
+    uint32_t album_art_height;
     time_t update_time;
 } TrackInfo;
 

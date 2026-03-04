@@ -96,8 +96,6 @@ static void track_info_dup(TrackInfo t, TrackInfo* ret) {
     if (t.artist != NULL) allocfail_print(ret->artist);
     ret->title = estrdup(t.title);
     if (t.title != NULL) allocfail_print(ret->title);
-    ret->album_art_url = estrdup(t.album_art_url);
-    if (t.album_art_url != NULL) allocfail_print(ret->album_art_url);
 
     if (t.album_art != NULL) {
         int size = t.album_art_width * t.album_art_height * 4;
@@ -116,7 +114,6 @@ void track_info_struct_free(TrackInfo* ti) {
     efree(ti->artist);
     efree(ti->album);
     efree(ti->title);
-    efree(ti->album_art_url);
     efree(ti->album_art);
 }
 
@@ -124,7 +121,6 @@ void track_info_struct_init(TrackInfo* ti) {
     ti->artist = NULL;
     ti->album = NULL;
     ti->title = NULL;
-    ti->album_art_url = NULL;
     ti->album_art = NULL;
     ti->album_art_width = 0;
     ti->album_art_height = 0;
@@ -199,5 +195,5 @@ void track_info_print_players() {
 }
 
 void track_info_print(TrackInfo ti) {
-    printf("%s - \"%s\" from %s, art: %s\n", ti.artist, ti.title, ti.album, ti.album_art_url);
+    printf("%s - \"%s\" from %s\n", ti.artist, ti.title, ti.album);
 }

@@ -49,7 +49,6 @@ typedef struct source {
     const char* text_field;
 
     // thread
-    char* last_track_url;
     time_t last_update_time;
     TrackInfo* last_track;
     bool changed;
@@ -112,10 +111,6 @@ static void apply_template(char* template, TrackInfo* track_info, char* ret, int
             tlen = strlen0(track_info->album);
             if (nb_max - tlen <= 0) return;
             strncat(ret, track_info->album, tlen);
-        } else if (strcmp(token, "album_art_url") == 0) {
-            tlen = strlen0(track_info->album_art_url);
-            if (nb_max - tlen <= 0) return;
-            strncat(ret, track_info->album_art_url, tlen);
         } else {
             tlen = strlen0(token);
             if (nb_max - tlen <= 0) return;
@@ -186,7 +181,7 @@ static void update_source(obsmed_source* source) {
     if (! source->changed) return;
 
     if (current_track != NULL) {
-        if (current_track->album_art != NULL) { //TODO: refactor (add an image parsing library for linux)
+        if (current_track->album_art != NULL) {
             pthread_mutex_lock(source->texture_mutex);
             obs_enter_graphics();
             if (source->texture != NULL) gs_texture_destroy(source->texture);
@@ -198,40 +193,6 @@ static void update_source(obsmed_source* source) {
             if (source->texture == NULL) log_warning("error loading texture\n");
             obs_leave_graphics();
             pthread_mutex_unlock(source->texture_mutex);
-        } else if (current_track->album_art_url == NULL && source->last_track_url != NULL) {
-            pthread_mutex_lock(source->texture_mutex);
-            obs_enter_graphics();
-            if (source->texture != NULL) gs_texture_destroy(source->texture);
-
-            source->texture = NULL;
-            obs_leave_graphics();
-            pthread_mutex_unlock(source->texture_mutex);
-
-            efree(source->last_track_url);
-            source->last_track_url = NULL;
-        } else if (current_track->album_art_url != NULL &&
-                   (source->last_track_url == NULL || strcmp(source->last_track_url, current_track->album_art_url) != 0)) {
-            pthread_mutex_lock(source->texture_mutex);
-            obs_enter_graphics();
-            if (source->texture != NULL) gs_texture_destroy(source->texture);
-
-            //TODO: syncronise texture and text updating
-            source->texture = gs_texture_create_from_file(current_track->album_art_url); //TODO: texture from http only works with obs's ffmpeg backend not with imageMagic.
-
-            if (source->texture == NULL) {
-              log_warning("error loading texture\n");
-              source->texture_width = 0;
-              source->texture_height = 0;
-            } else {
-              source->texture_width = gs_texture_get_width(source->texture);
-              source->texture_height = gs_texture_get_height(source->texture);
-            }
-            obs_leave_graphics();
-            pthread_mutex_unlock(source->texture_mutex);
-
-            efree(source->last_track_url);
-            source->last_track_url = strdup(current_track->album_art_url);
-            allocfail_print(source->last_track_url);
         }
         char text[200];
         apply_template((char*)source->template, current_track, text, 199);
@@ -247,8 +208,6 @@ static void update_source(obsmed_source* source) {
                 source->texture = NULL;
                 obs_leave_graphics();
                 pthread_mutex_unlock(source->texture_mutex);
-                efree(source->last_track_url);
-                source->last_track_url = NULL;
             }
             // remove text
             update_obs_text_source((char*)source->text_field, "");
@@ -324,7 +283,6 @@ static void* obsmed_create(obs_data_t *settings, obs_source_t *source) {
     }
     pthread_mutex_lock(sources_mutex);
     //thread
-    data->last_track_url = NULL;
     data->last_update_time = time(NULL);
     data->last_track = NULL;
     data->changed = false;
@@ -351,7 +309,6 @@ static void obsmed_destroy(void* d) {
         pthread_join(update_thread, NULL);
     }
 
-    efree(data->last_track_url);
     pthread_mutex_destroy(data->texture_mutex);
     bfree(data->texture_mutex);
     gs_texture_destroy(data->texture);

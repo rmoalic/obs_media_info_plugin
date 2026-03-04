@@ -11,6 +11,7 @@
 #include "utils.h"
 #define LOG_PREFIX "[obs_media_info] "
 #include "logging.h"
+#include "image_loader.h"
 
 #define NB_PLAYER_MAX 10
 static const char MPRIS_NAME_START[] = "org.mpris.MediaPlayer2";
@@ -21,13 +22,14 @@ struct current_track_extra_info {
 
 static DBusConnection* dbus_connection = NULL;
 static TrackInfo current_track = {0};
+struct DecodedImage* decoded_image = NULL;
 static struct current_track_extra_info current_track_extra = {0};
 static bool playing = false;
 
 struct track_info_has_updates {
   bool has_url;
   bool has_title;
-  bool has_art_url;
+  bool has_art;
   bool has_artist;
   bool has_album;
 };
@@ -143,12 +145,21 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret, struct
                 if (skip_if_wrong_type(iter, &sub, DBUS_TYPE_STRING, property_name)) continue;
                 dbus_message_iter_get_basic(&sub, &url);
                 correct_url = correct_art_url(url);
-                if (update_data_if_diff(&(current_track.album_art_url), correct_url)) {
-                    *updated_data_ret = true;
+
+                free_decoded_image(decoded_image);
+                decoded_image = NULL;
+                decoded_image = load_image_ffmpeg(correct_url);
+                free(correct_url);
+                if (decoded_image != NULL) {
+                  current_track.album_art = decoded_image->data;
+                  current_track.album_art_height = decoded_image->height;
+                  current_track.album_art_width = decoded_image->width;
+
+                  *updated_data_ret = true;
                 }
-                has_updates->has_art_url = true;
+                has_updates->has_art = true;
             } else if (strcmp(property_name, "xesam:artist") == 0) {
-                char* artist;
+                char* artist = NULL;
                 dbus_message_iter_recurse(iter, &sub);
 
                 switch (dbus_message_iter_get_arg_type(&sub)) {
@@ -239,7 +250,11 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret, bool* upd
 
                 if (! has_updates.has_url)      update_data_if_diff(&(current_track_extra.track_url) , NULL);
 
-                if (! has_updates.has_art_url)  update_data_if_diff(&(current_track.album_art_url)        , NULL);
+                if (! has_updates.has_art) {
+                  current_track.album_art = NULL;
+                  current_track.album_art_height = 0;
+                  current_track.album_art_width = 0;
+                }
                 if (! has_updates.has_artist)   update_data_if_diff(&(current_track.artist)               , NULL);
                 if (! has_updates.has_album)    update_data_if_diff(&(current_track.album)                , NULL);
 

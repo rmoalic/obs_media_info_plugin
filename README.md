@@ -68,7 +68,6 @@ $ cp obs_media_plugin.so /usr/share/obs/obs-plugins/
 
 ## TODO
 
-- [ ] Not relying on ffmpeg to download images files (linux)
 - [ ] Build using cmake like others obs plugins
 
 ## Note
