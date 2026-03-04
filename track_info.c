@@ -22,11 +22,11 @@ static int players_name_cmp(TrackInfoPerPlayer* a, TrackInfoPerPlayer* b) {
     return strcmp(a->player.name, b->player.name);
 }
 
-void track_info_init() {
+void track_info_init(void) {
     list_init(&players);
 }
 
-TrackInfo* track_info_get_best_cantidate() {
+TrackInfo* track_info_get_best_candidate(void) {
     struct list_element* curr = players;
     TrackInfo* best_candidate = NULL;
 
@@ -74,6 +74,11 @@ TrackInfo* track_info_get_from_selected_player_fancy_name(const char* player_fan
 TrackInfoPlayer** track_info_get_players(int* ret_nb) {
     struct list_element* curr = players;
     int nb_player = list_size(players);
+
+    if (nb_player == 0) {
+      *ret_nb = 0;
+      return NULL;
+    }
 
     TrackInfoPlayer** ret = malloc(sizeof(TrackInfoPlayer*) * nb_player);
     allocfail_return_null(ret);
@@ -145,11 +150,6 @@ void track_info_register_player(const char* name, const char* fancy_name){
     list_prepend(&players, track_info_per_player, sizeof(TrackInfoPerPlayer));
 }
 
-void track_info_unregister_player(const char* name) {
-    TrackInfoPerPlayer h = {.player.name = name};
-    list_remove(&players, &h, (list_cmpfunc) players_name_cmp);
-}
-
 static TrackInfoPerPlayer* track_info_get_for_player(const char* name) {
     TrackInfoPerPlayer* track_info = NULL;
     TrackInfoPerPlayer h = {.player.name = name};
@@ -161,11 +161,26 @@ static TrackInfoPerPlayer* track_info_get_for_player(const char* name) {
     return track_info;
 }
 
+void track_info_unregister_player(const char* name) {
+  TrackInfoPerPlayer* e = track_info_get_for_player(name);
+    if (e == NULL)
+        return;
+
+    track_info_struct_free(&e->track);
+
+    TrackInfoPerPlayer h = {.player.name = name};
+    list_remove(&players, &h, (list_cmpfunc) players_name_cmp);
+
+    efree(e);
+}
+
 void track_info_register_track_change(const char* name, TrackInfo track) {
     TrackInfoPerPlayer* track_info = track_info_get_for_player(name);
     if (track_info == NULL) return;
 
     track_info->updated_once = true;
+    track_info_struct_free(&(track_info->track));
+    track_info_struct_init(&(track_info->track));
     track_info_dup(track, &(track_info->track));
     track_info->track.update_time = time(NULL);
 }
@@ -178,7 +193,7 @@ void track_info_register_state_change(const char* name, bool playing) {
     track_info->track.update_time = time(NULL);
 }
 
-void track_info_print_players() {
+void track_info_print_players(void) {
     struct list_element* curr = players;
 
     int i = 0;
@@ -195,5 +210,8 @@ void track_info_print_players() {
 }
 
 void track_info_print(TrackInfo ti) {
-    printf("%s - \"%s\" from %s\n", ti.artist, ti.title, ti.album);
+    printf("%s - \"%s\" from %s\n",
+           ti.artist ? ti.artist : "(null)",
+           ti.title ? ti.title : "(null)",
+           ti.album ? ti.album : "(null)");
 }

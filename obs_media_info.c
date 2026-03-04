@@ -148,12 +148,12 @@ static TrackInfo* update_get_current_track(obsmed_source* source) {
     TrackInfo* current_track = NULL;
 
     if (strcmp(SETTING_NO_SELECTED_PLAYER, source->selected_player) == 0) {
-        current_track = track_info_get_best_cantidate();
+        current_track = track_info_get_best_candidate();
     } else {
         assert(source->selected_player != NULL);
         current_track = track_info_get_from_selected_player_fancy_name(source->selected_player);
         if (current_track == NULL && source->fallback_if_selected_player_not_running) {
-            current_track = track_info_get_best_cantidate();
+            current_track = track_info_get_best_candidate();
         }
     }
 

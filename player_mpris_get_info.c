@@ -97,9 +97,9 @@ static bool skip_if_wrong_type(DBusMessageIter* iter_go_next, DBusMessageIter* c
 
     if (type != dbus_type) {
         if (property_name != NULL) {
-            log_error("Error: Encontered wrong type for %s (%c, expecting %c)\n", property_name, type, dbus_type);
+            log_error("Error: Encountered wrong type for %s (%c, expecting %c)\n", property_name, type, dbus_type);
         } else {
-            log_error("Error: Encontered wrong type (%c, expecting %c)\n", type, dbus_type);
+            log_error("Error: Encountered wrong type (%c, expecting %c)\n", type, dbus_type);
         }
         dbus_message_iter_next(iter_go_next);
         ret = true;
@@ -126,7 +126,7 @@ static void parse_MetaData(DBusMessageIter* iter, bool* updated_data_ret, struct
         } break;
         case DBUS_TYPE_VARIANT: {
             if (property_name == NULL) {
-                log_error("Error: Encontered property before its name, ignoring\n");
+                log_error("Error: Encountered property before its name, ignoring\n");
                 continue;
             }
             if (strcmp(property_name, "xesam:title") == 0) {
@@ -225,7 +225,7 @@ static void parse_array(DBusMessageIter* iter, bool* updated_data_ret, bool* upd
         } break;
         case DBUS_TYPE_VARIANT: {
             if (property_name == NULL) {
-                log_error("Error: Encontered property before its name, ignoring\n");
+                log_error("Error: Encountered property before its name, ignoring\n");
                 continue;
             }
             if (strcmp(property_name, "PlaybackStatus") == 0) {
@@ -291,7 +291,7 @@ static DBusHandlerResult my_message_handler_mpris(DBusConnection *connection, DB
 
     const char* property_name = NULL;
     const char* player = dbus_message_get_sender(message);
-    log_debug("\n\nreceived message from %s\n", player);
+    log_debug("\n\nreceived message from %s\n", player ? player : "(null)");
 
 
     dbus_message_iter_init (message, &iter);
@@ -389,7 +389,7 @@ static DBusHandlerResult my_message_handler(DBusConnection *connection, DBusMess
 
     if (strcmp(path, "/org/mpris/MediaPlayer2") == 0) {
         ret = my_message_handler_mpris(connection, message, user_data);
-    } else if (strcmp(path, "/org/freedesktop/DBus") == 0 && strcmp(member, "NameOwnerChanged") == 0) {
+    } else if (strcmp(path, "/org/freedesktop/DBus") == 0 && member && strcmp(member, "NameOwnerChanged") == 0) {
         ret = my_message_handler_dbus(connection, message, user_data);
     } else {
         log_warning("NOT HANDLED: message with path %s and member %s\n", path, member);
@@ -473,6 +473,7 @@ static bool mydbus_query_players_playback_status(DBusConnection* dbus, const cha
 
         dbus_message_unref(resp);
     }
+    dbus_pending_call_unref(resp_pending);
     dbus_message_unref(msg);
     return ret_playing;
 }
@@ -500,6 +501,7 @@ static void mydbus_query_players(DBusConnection* dbus, char* player_dbus_name) {
 
         dbus_message_unref(resp);
     }
+    dbus_pending_call_unref(resp_pending);
     dbus_message_unref(msg);
 }
 
@@ -541,6 +543,7 @@ static void mydbus_register_names(DBusConnection* dbus)
         }
         dbus_message_unref(resp);
     }
+    dbus_pending_call_unref(resp_pending);
     dbus_message_unref(msg);
 }
 

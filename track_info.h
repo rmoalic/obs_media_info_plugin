@@ -30,7 +30,7 @@ void track_info_struct_init(TrackInfo* ti);
 void track_info_print(TrackInfo ti);
 void track_info_register_track_change(const char* player, TrackInfo track);
 void track_info_register_state_change(const char* player, bool playing);
-TrackInfo* track_info_get_best_cantidate(void);
+TrackInfo* track_info_get_best_candidate(void);
 TrackInfo* track_info_get_from_selected_player_fancy_name(const char* player_fancy_name);
 void track_info_print_players(void);
 void track_info_unregister_player(const char* player);
