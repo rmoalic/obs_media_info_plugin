@@ -44,7 +44,7 @@ Place the `obs_media_plugin.dll` in the obs plugins directoty (`OBS-Studio-27.0.
 ``` shell
 $ apt update
 $ apt install build-essential pkgconf # requiring make gcc pkgconf
-$ apt install libdbus-1-dev libobs-dev
+$ apt install libdbus-1-dev libobs-dev libavcodec-dev libavformat-dev libavutil-dev libswscale-dev
 
 % make
 ```
