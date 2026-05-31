@@ -161,7 +161,7 @@ static TrackInfoPerPlayer* track_info_get_for_player(const char* name) {
 }
 
 void track_info_unregister_player(const char* name) {
-  TrackInfoPerPlayer* e = track_info_get_for_player(name);
+    TrackInfoPerPlayer* e = track_info_get_for_player(name);
     if (e == NULL)
         return;
 
@@ -173,6 +173,14 @@ void track_info_unregister_player(const char* name) {
     efree(e);
 }
 
+static void track_info_apply_player_quirks(struct track_info* track) {
+    char* topic_position = strEndsWith(track->artist, " - Topic");
+    if (topic_position != NULL) {
+        log_debug("applied quirk to remove youtubes \" - Topic\" on \"%s\"", track->artist);
+        *topic_position = '\0';
+    }
+}
+
 void track_info_register_track_change(const char* name, TrackInfo track) {
     TrackInfoPerPlayer* track_info = track_info_get_for_player(name);
     if (track_info == NULL) return;
@@ -180,6 +188,7 @@ void track_info_register_track_change(const char* name, TrackInfo track) {
     track_info->updated_once = true;
     track_info_struct_free(&(track_info->track));
     track_info_struct_init(&(track_info->track));
+    track_info_apply_player_quirks(&track);
     track_info_dup(track, &(track_info->track));
     track_info->track.update_time = time(NULL);
 }
