@@ -1,10 +1,12 @@
 # obs_media_info
 
-This project is an attempt at making a [OBS Studio](https://obsproject.com/) plugin.
+This project is a [OBS Studio](https://obsproject.com/) plugin.
 
 The plugin display the current playing track info (title, album, artist) and artwork.
 
-Data is collected though the [MPRIS 2](https://specifications.freedesktop.org/mpris-spec/latest/) or [Windows.Media.Control](https://docs.microsoft.com/en-us/uwp/api/windows.media.control?view=winrt-20348) interfaces so a lot of players should be supported (VLC, Spotify, Firefox, ...).
+Data is collected on linux though the [MPRIS 2](https://specifications.freedesktop.org/mpris-spec/latest/) protocol.
+On Windows it uses the [System Media Transport Controls (SMTC)](https://learn.microsoft.com/en-us/windows/apps/develop/media-playback/integrate-with-systemmediatransportcontrols) accessed with the [Windows.Media.Control](https://docs.microsoft.com/en-us/uwp/api/windows.media.control?view=winrt-20348) namespace.
+Those interfaces are used for system integration so a lot of players should be supported (VLC, Spotify, Firefox, ...).
 
 ## Screenshot
 ![Screenshot of obs with the plugin installed](screen.png)
@@ -26,7 +28,7 @@ New-LibFromDll w32-pthreads.dll
 
 ```
 
-* Download obs source code (for the headers) [here](https://github.com/obsproject/obs-studio/archive/refs/tags/27.0.1.zip). And unzip it to an `obs_studio` folder.
+* Download obs source code (for the headers) [here](https://github.com/obsproject/obs-studio/archive/refs/tags/32.2.2.zip). And unzip it to an `obs_studio` folder.
 
 
 * Build the project
@@ -36,7 +38,7 @@ build_msvc.bat
 
 ### Install
 
-Place the `obs_media_plugin.dll` in the obs plugins directoty (`OBS-Studio-27.0.1-Full-x64\obs-plugins\64bit`).
+Place the `obs_media_plugin.dll` in the obs plugins directoty (`OBS-Studio-32.2.2-Full-x64\obs-plugins\64bit`).
 
 ## Linux
 ### Build
@@ -73,4 +75,6 @@ $ cp obs_media_plugin.so /usr/share/obs/obs-plugins/
 ## Note
 
 * If you are using Firefox for media playback, make sure `media.hardwaremediakeys.enabled` is set to `true` (default)
+* If you don't want the thumbnail, use the eye from the source pannel to hide it.
+* Adding the media infos sources and the text source into a group allow the use of fade-in fade-out transition.
 

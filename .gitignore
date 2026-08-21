@@ -8,3 +8,5 @@
 *.dll
 *.def
 *.pdb
+
+obs_studio/
