@@ -4,6 +4,8 @@
 
 #include <iostream>
 #include <algorithm>
+#include <chrono>
+
 
 #include "player_info_get.h"
 #include "track_info.h"
@@ -12,6 +14,8 @@
 #include "logging.h"
 
 #include <winrt/base.h>
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.System.Threading.h>
 #include <winrt/Windows.Graphics.Imaging.h>
 #include <winrt/Windows.Media.Control.h>
 #include <winrt/Windows.Storage.Streams.h>
@@ -19,17 +23,21 @@
 
 
 using namespace winrt;
+using namespace Windows::System::Threading;
 using namespace Windows::Graphics::Imaging;
 using namespace Windows::Media::Control;
 using namespace Windows::Storage::Streams;
 using namespace Windows::Foundation::Collections;
 
 using namespace std;
+using winrt::Windows::Foundation::TimeSpan;
 
 void update_players_registration();
 
 static GlobalSystemMediaTransportControlsSessionManager session_manager { nullptr };
 winrt::event_token session_manager_change_token;
+ThreadPoolTimer timer_retry_thumbnail { nullptr };
+MediaPropertiesChangedEventArgs media_properties_changed_no_recurtion_sentinel {nullptr};
 
 struct PlayerSessionData {
     std::string app_id;
@@ -42,7 +50,9 @@ static void handle_session_change(GlobalSystemMediaTransportControlsSessionManag
     update_players_registration();
 }
 
-static void handle_media_property_change(GlobalSystemMediaTransportControlsSession session, MediaPropertiesChangedEventArgs arg) {
+static void handle_media_property_change(GlobalSystemMediaTransportControlsSession session, MediaPropertiesChangedEventArgs const& arg) {
+    if (arg == nullptr) log_debug("property_change arg == nullptr");
+    if (&arg == &media_properties_changed_no_recurtion_sentinel) log_debug("timer sentinel");
     if (session == nullptr) return;
     TrackInfo current_track;
     track_info_struct_init(&current_track);
@@ -102,6 +112,33 @@ static void handle_media_property_change(GlobalSystemMediaTransportControlsSessi
         }
         catch (...) {
             log_warning("Failed to decode thumbnail stream");
+        }
+    } else {
+        try {
+            // The idea is to requery later if there is no thumbnail.
+            // Some player send property_change event for each field.
+            // So this timer is called on every song change.
+            // I tried to cancel the timer when there is a thumbnail but,
+            // on rapid song changes, sometime the events are not in order.
+            // somehow it ends up with the correct text but a past thumbnail.
+            if (&arg != &media_properties_changed_no_recurtion_sentinel) {
+                if (timer_retry_thumbnail != nullptr) { //TODO: have one timer per player
+                    log_debug("timer cancel2");
+                    timer_retry_thumbnail.Cancel();
+                    timer_retry_thumbnail = nullptr;
+                }
+                log_debug("timer set");
+                timer_retry_thumbnail = ThreadPoolTimer::CreateTimer(
+                    [session](ThreadPoolTimer const&) {
+                        log_debug("timer called");
+                        handle_media_property_change(session, media_properties_changed_no_recurtion_sentinel);
+                    }, std::chrono::milliseconds(2000));
+            } else {
+                log_debug("timer stopping recurtion");
+            }
+        }
+        catch (...) {
+            log_warning("timer error");
         }
     }
 
